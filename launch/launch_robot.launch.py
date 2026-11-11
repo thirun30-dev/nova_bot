@@ -20,7 +20,7 @@ def generate_launch_description():
     # Include the robot_state_publisher launch file, provided by our own package. Force sim time to be enabled
     # !!! MAKE SURE YOU SET THE PACKAGE NAME CORRECTLY !!!
 
-    package_name='articubot_one' #<--- CHANGE ME
+    package_name='nova_bot' #<--- CHANGE ME
 
     rsp = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
@@ -45,6 +45,14 @@ def generate_launch_description():
 
     
 
+
+    # Jazzy's diff_drive_controller takes TwistStamped on /diff_cont/cmd_vel
+    twist_stamper = Node(
+            package='twist_stamper',
+            executable='twist_stamper',
+            remappings=[('/cmd_vel_in','/diff_cont/cmd_vel_unstamped'),
+                        ('/cmd_vel_out','/diff_cont/cmd_vel')]
+        )
 
     robot_description = Command(['ros2 param get --hide-type /robot_state_publisher robot_description'])
 
@@ -109,6 +117,7 @@ def generate_launch_description():
         rsp,
         # joystick,
         twist_mux,
+        twist_stamper,
         delayed_controller_manager,
         delayed_diff_drive_spawner,
         delayed_joint_broad_spawner
