@@ -5,14 +5,14 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
 
-    package_name = 'nova_bot'
+    package_name = 'hiro_bot'
     pkg_share = get_package_share_directory(package_name)
 
     # robot_state_publisher with the simulated (gz_ros2_control) hardware
@@ -27,24 +27,34 @@ def generate_launch_description():
         launch_arguments={'use_sim_time': 'true'}.items()
     )
 
-    # Velocity command chain:
-    #   /cmd_vel (Nav2, keyboard) + /cmd_vel_joy (gamepad)
-    #     -> twist_mux -> /diff_cont/cmd_vel_unstamped
-    #     -> twist_stamper -> /diff_cont/cmd_vel (TwistStamped, what Jazzy's diff_drive_controller wants)
+    # Velocity command chain (twist_mux >= 4.5 is TwistStamped-only):
+    #   /cmd_vel (Nav2, keyboard)  -> twist_stamper -> /cmd_vel_stamped     ─┐
+    #   /cmd_vel_joy (gamepad)     -> twist_stamper -> /cmd_vel_joy_stamped ─┴─ twist_mux
+    #     -> /diff_cont/cmd_vel (TwistStamped, what Jazzy's diff_drive_controller wants)
     twist_mux_params = os.path.join(pkg_share, 'config', 'twist_mux.yaml')
     twist_mux = Node(
         package='twist_mux',
         executable='twist_mux',
         parameters=[twist_mux_params, {'use_sim_time': True}],
-        remappings=[('/cmd_vel_out', '/diff_cont/cmd_vel_unstamped')]
+        remappings=[('/cmd_vel_out', '/diff_cont/cmd_vel')]
     )
 
-    twist_stamper = Node(
+    stamp_nav = Node(
         package='twist_stamper',
         executable='twist_stamper',
-        parameters=[{'use_sim_time': True}],
-        remappings=[('/cmd_vel_in', '/diff_cont/cmd_vel_unstamped'),
-                    ('/cmd_vel_out', '/diff_cont/cmd_vel')]
+        name='stamp_cmd_vel',
+        parameters=[{'use_sim_time': True, 'frame_id': 'base_link'}],
+        remappings=[('/cmd_vel_in', '/cmd_vel'),
+                    ('/cmd_vel_out', '/cmd_vel_stamped')]
+    )
+
+    stamp_joy = Node(
+        package='twist_stamper',
+        executable='twist_stamper',
+        name='stamp_cmd_vel_joy',
+        parameters=[{'use_sim_time': True, 'frame_id': 'base_link'}],
+        remappings=[('/cmd_vel_in', '/cmd_vel_joy'),
+                    ('/cmd_vel_out', '/cmd_vel_joy_stamped')]
     )
 
     # Nav2's default configuration expects wheel odometry on /odom
@@ -65,17 +75,24 @@ def generate_launch_description():
         description='World to load'
     )
 
+    # headless:=true runs only the Gazebo server (no GUI window), e.g. when the robot is
+    # driven from the web dashboard. The camera still renders (--headless-rendering).
+    headless_arg = DeclareLaunchArgument(
+        'headless', default_value='false', description='Run Gazebo without its GUI')
+    gz_flags = PythonExpression(["'-r -s --headless-rendering -v4 ' if '",
+                                 LaunchConfiguration('headless'), "' == 'true' else '-r -v4 '"])
+
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(
             get_package_share_directory('ros_gz_sim'), 'launch', 'gz_sim.launch.py')]),
-        launch_arguments={'gz_args': ['-r -v4 ', world], 'on_exit_shutdown': 'true'}.items()
+        launch_arguments={'gz_args': [gz_flags, world], 'on_exit_shutdown': 'true'}.items()
     )
 
     spawn_entity = Node(
         package='ros_gz_sim',
         executable='create',
         arguments=['-topic', 'robot_description',
-                   '-name', 'nova',
+                   '-name', 'hiro',
                    '-z', '0.1'],
         output='screen'
     )
@@ -112,10 +129,12 @@ def generate_launch_description():
     return LaunchDescription([
         rsp,
         joystick,
+        stamp_nav,
+        stamp_joy,
         twist_mux,
-        twist_stamper,
         odom_relay,
         world_arg,
+        headless_arg,
         gazebo,
         spawn_entity,
         diff_drive_spawner,

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(nova_bot)
+project(hiro_bot)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -33,8 +33,13 @@ if(BUILD_TESTING)
 endif()
 
 install(
-  DIRECTORY config description launch worlds
+  DIRECTORY config description launch worlds web
   DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  PROGRAMS scripts/hiro_dashboard.py scripts/hiro_tasks.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 ament_package()

@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+/* Hiro control console: one dark operations theme (the robot UI is used on the
+   warehouse floor and in labs, often on tablets; dark keeps the map readable). */
+@theme {
+  --color-ink-950: #070b14;
+  --color-ink-900: #0b1120;
+  --color-ink-850: #0f1729;
+  --color-ink-800: #131d33;
+  --color-ink-700: #1c2945;
+  --color-ink-600: #2a3a5c;
+  --color-accent: #3b82f6;
+  --color-accent-2: #22d3ee;
+  --font-sans: ui-sans-serif, Inter, "Segoe UI", Ubuntu, system-ui, sans-serif;
+  --font-mono: ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  --animate-blink: blink 0.9s ease-in-out infinite;
+  --animate-pulse-ring: pulse-ring 1.2s ease-in-out infinite;
+
+  @keyframes blink {
+    50% { opacity: 0.25; }
+  }
+  @keyframes pulse-ring {
+    50% { box-shadow: 0 0 0 7px rgb(250 204 21 / 0.25); }
+  }
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--color-ink-950);
+  color: #e5ecf6;
+}
+
+/* number columns that do not jitter while values update */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.estop-stripes {
+  background: repeating-linear-gradient(45deg, #7f1d1d, #7f1d1d 14px, #991b1b 14px, #991b1b 28px);
+}
+
+input[type="range"] {
+  accent-color: var(--color-accent);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--color-ink-700); border-radius: 10px; border: 2px solid var(--color-ink-900); }
+::-webkit-scrollbar-track { background: transparent; }

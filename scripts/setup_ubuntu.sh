@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# One-time setup for the Nova workspace on Ubuntu 24.04 (ROS 2 Jazzy + Gazebo Harmonic).
-# Run from anywhere:  bash src/nova_bot/scripts/setup_ubuntu.sh
+# One-time setup for the Hiro workspace on Ubuntu 24.04 (ROS 2 Jazzy + Gazebo Harmonic).
+# Run from anywhere:  bash src/hiro_bot/scripts/setup_ubuntu.sh
 # Safe to re-run: it skips the ROS install if /opt/ros/jazzy already exists.
 set -euo pipefail
 
@@ -40,7 +40,7 @@ set +u
 source "/opt/ros/$ROS_DISTRO_NAME/setup.bash"
 set -u
 
-echo "==> Installing nova_bot dependencies (from package.xml)"
+echo "==> Installing hiro_bot dependencies (from package.xml)"
 cd "$WS_DIR"
 rosdep install --from-paths src --ignore-src -r -y
 
@@ -54,5 +54,5 @@ Done. In every new terminal run:
     source $WS_DIR/install/setup.bash
 
 Then start the simulation:
-    ros2 launch nova_bot launch_sim.launch.py world:=$PKG_DIR/worlds/obstacles.world
+    ros2 launch hiro_bot launch_sim.launch.py world:=$PKG_DIR/worlds/obstacles.world
 EOF

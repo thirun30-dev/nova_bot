@@ -20,7 +20,7 @@ def generate_launch_description():
     # Include the robot_state_publisher launch file, provided by our own package. Force sim time to be enabled
     # !!! MAKE SURE YOU SET THE PACKAGE NAME CORRECTLY !!!
 
-    package_name='nova_bot' #<--- CHANGE ME
+    package_name='hiro_bot' #<--- CHANGE ME
 
     rsp = IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([os.path.join(
@@ -40,18 +40,27 @@ def generate_launch_description():
             package="twist_mux",
             executable="twist_mux",
             parameters=[twist_mux_params],
-            remappings=[('/cmd_vel_out','/diff_cont/cmd_vel_unstamped')]
+            remappings=[('/cmd_vel_out','/diff_cont/cmd_vel')]
         )
 
-    
-
-
-    # Jazzy's diff_drive_controller takes TwistStamped on /diff_cont/cmd_vel
+    # twist_mux >= 4.5 is TwistStamped-only, and Jazzy's diff_drive_controller takes
+    # TwistStamped on /diff_cont/cmd_vel, so stamp the plain-Twist inputs before the mux.
     twist_stamper = Node(
             package='twist_stamper',
             executable='twist_stamper',
-            remappings=[('/cmd_vel_in','/diff_cont/cmd_vel_unstamped'),
-                        ('/cmd_vel_out','/diff_cont/cmd_vel')]
+            name='stamp_cmd_vel',
+            parameters=[{'frame_id': 'base_link'}],
+            remappings=[('/cmd_vel_in','/cmd_vel'),
+                        ('/cmd_vel_out','/cmd_vel_stamped')]
+        )
+
+    twist_stamper_joy = Node(
+            package='twist_stamper',
+            executable='twist_stamper',
+            name='stamp_cmd_vel_joy',
+            parameters=[{'frame_id': 'base_link'}],
+            remappings=[('/cmd_vel_in','/cmd_vel_joy'),
+                        ('/cmd_vel_out','/cmd_vel_joy_stamped')]
         )
 
     robot_description = Command(['ros2 param get --hide-type /robot_state_publisher robot_description'])
@@ -118,6 +127,7 @@ def generate_launch_description():
         # joystick,
         twist_mux,
         twist_stamper,
+        twist_stamper_joy,
         delayed_controller_manager,
         delayed_diff_drive_spawner,
         delayed_joint_broad_spawner
