@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>hiro_bot</name>
+  <name>nova_bot</name>
   <version>0.1.0</version>
-  <description>Hiro autonomous mobile robot: description, simulation, SLAM and navigation bringup (based on joshnewans/articubot_one).</description>
-  <maintainer email="todo@example.com">Hiro maintainer</maintainer>
+  <description>Nova autonomous mobile robot: description, simulation, SLAM and navigation bringup (based on joshnewans/articubot_one).</description>
+  <maintainer email="todo@example.com">Nova maintainer</maintainer>
   <license>TODO: License declaration</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

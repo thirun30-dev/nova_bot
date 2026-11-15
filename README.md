@@ -1,6 +1,6 @@
-# hiro_bot
+# nova_bot
 
-ROS 2 package for **Hiro**, a differential-drive autonomous mobile robot (AMR).
+ROS 2 package for **Nova**, a differential-drive autonomous mobile robot (AMR).
 It is based on the `new_gazebo` branch of
 [joshnewans/articubot_one](https://github.com/joshnewans/articubot_one) and targets
 **ROS 2 Jazzy on Ubuntu 24.04 with Gazebo Harmonic**.
@@ -20,12 +20,12 @@ the upstream placeholder — see [Real robot](#real-robot-not-done-yet).
 
 ## Setup (Ubuntu 24.04)
 
-Copy the whole workspace folder (the one containing `src/hiro_bot`) to the Ubuntu
+Copy the whole workspace folder (the one containing `src/nova_bot`) to the Ubuntu
 machine, e.g. as `~/hiro_ws`, then:
 
 ```bash
 cd ~/hiro_ws
-bash src/hiro_bot/scripts/setup_ubuntu.sh
+bash src/nova_bot/scripts/setup_ubuntu.sh
 ```
 
 The script installs ROS 2 Jazzy if it is missing, installs every dependency listed in
@@ -41,8 +41,8 @@ source ~/hiro_ws/install/setup.bash
 ## Quick start: the whole bot in one command
 
 ```bash
-ros2 launch hiro_bot bringup_sim.launch.py                      # Gazebo + SLAM + Nav2 + RViz
-ros2 launch hiro_bot bringup_sim.launch.py mode:=localization \
+ros2 launch nova_bot bringup_sim.launch.py                      # Gazebo + SLAM + Nav2 + RViz
+ros2 launch nova_bot bringup_sim.launch.py mode:=localization \
     map:=$HOME/hiro_ws/maps/my_map_v2.yaml                      # AMCL on a saved map
 ```
 
@@ -52,10 +52,10 @@ Arguments: `world`, `mode` (`slam` | `localization`), `map`, `nav`, `rviz`, and 
 Check each task against the running sim:
 
 ```bash
-python3 src/hiro_bot/scripts/hiro_tasks.py drive                  # teleop chain + odometry
-python3 src/hiro_bot/scripts/hiro_tasks.py map                    # SLAM is publishing /map
-python3 src/hiro_bot/scripts/hiro_tasks.py nav 2 1.5              # one Nav2 goal
-python3 src/hiro_bot/scripts/hiro_tasks.py patrol 2,1.5 1.8,-2 0,0
+python3 src/nova_bot/scripts/nova_tasks.py drive                  # teleop chain + odometry
+python3 src/nova_bot/scripts/nova_tasks.py map                    # SLAM is publishing /map
+python3 src/nova_bot/scripts/nova_tasks.py nav 2 1.5              # one Nav2 goal
+python3 src/nova_bot/scripts/nova_tasks.py patrol 2,1.5 1.8,-2 0,0
 ```
 
 Each task prints PASS/FAIL and exits non-zero on failure. `obstacles.world` has no walls, so
@@ -65,10 +65,10 @@ outside the mapped area ("Goal Coordinates ... was outside bounds").
 ## Web dashboard
 
 A Next.js + Tailwind CSS app (`webapp/`), exported as static files into `web/` and served by
-the `hiro_dashboard.py` ROS node, so the robot needs no Node.js at runtime.
+the `nova_dashboard.py` ROS node, so the robot needs no Node.js at runtime.
 
 ```bash
-ros2 launch hiro_bot web_control.launch.py          # dashboard only, then open http://localhost:8080
+ros2 launch nova_bot web_control.launch.py          # dashboard only, then open http://localhost:8080
 ```
 
 Start the robot, mapping, localization and Nav2 from the page. `bringup_sim.launch.py` also starts
@@ -98,17 +98,17 @@ placeholder (see [Real robot](#real-robot-not-done-yet)).
 ### Changing the UI
 
 ```bash
-cd ~/hiro_ws/src/hiro_bot/webapp
+cd ~/hiro_ws/src/nova_bot/webapp
 npm install                     # once
 npm run build                   # next build + copy the export into ../web
-cd ~/hiro_ws && colcon build --symlink-install --packages-select hiro_bot   # install new files
+cd ~/hiro_ws && colcon build --symlink-install --packages-select nova_bot   # install new files
 ```
 
 Live development with hot reload, against a running dashboard:
 
 ```bash
 # terminal 1: dashboard API that accepts the dev server's origin
-ros2 run hiro_bot hiro_dashboard.py --ros-args -p use_sim_time:=true -p cors_origin:=http://localhost:3000
+ros2 run nova_bot nova_dashboard.py --ros-args -p use_sim_time:=true -p cors_origin:=http://localhost:3000
 # terminal 2
 NEXT_PUBLIC_ROBOT_API=http://localhost:8080 npm run dev      # http://localhost:3000
 ```
@@ -118,7 +118,7 @@ The previous single-file UI is kept in `web_classic/index.html` (not installed).
 ## 1. Drive in simulation
 
 ```bash
-ros2 launch hiro_bot launch_sim.launch.py world:=$HOME/hiro_ws/src/hiro_bot/worlds/obstacles.world
+ros2 launch nova_bot launch_sim.launch.py world:=$HOME/hiro_ws/src/nova_bot/worlds/obstacles.world
 ```
 
 Second terminal — keyboard teleop:
@@ -151,8 +151,8 @@ Wheel odometry is published on `/diff_cont/odom` and relayed to `/odom`.
 With the simulation running:
 
 ```bash
-ros2 launch hiro_bot slam.launch.py
-rviz2 -d $HOME/hiro_ws/src/hiro_bot/config/map.rviz
+ros2 launch nova_bot slam.launch.py
+rviz2 -d $HOME/hiro_ws/src/nova_bot/config/map.rviz
 ```
 
 Drive around until the map is complete, then save it:
@@ -167,14 +167,14 @@ ros2 run nav2_map_server map_saver_cli -f ~/hiro_ws/maps/my_map
 While mapping (SLAM provides the `map` frame):
 
 ```bash
-ros2 launch hiro_bot navigation.launch.py
+ros2 launch nova_bot navigation.launch.py
 ```
 
 Or on a saved map (stop `slam.launch.py` first):
 
 ```bash
-ros2 launch hiro_bot localization.launch.py map:=$HOME/hiro_ws/maps/my_map.yaml
-ros2 launch hiro_bot navigation.launch.py
+ros2 launch nova_bot localization.launch.py map:=$HOME/hiro_ws/maps/my_map.yaml
+ros2 launch nova_bot navigation.launch.py
 ```
 
 Open RViz with Nav2's own layout:
@@ -186,13 +186,13 @@ rviz2 -d /opt/ros/jazzy/share/nav2_bringup/rviz/nav2_default_view.rviz
 Set the initial pose with **2D Pose Estimate** (localization only), then send goals
 with **Nav2 Goal**.
 
-Nav2 runs with the stock parameters of the installed distro. To tune for Hiro, copy
+Nav2 runs with the stock parameters of the installed distro. To tune for Nova, copy
 `/opt/ros/jazzy/share/nav2_bringup/params/nav2_params.yaml` into `config/` and pass
 `params_file:=<path>` to both launch files.
 
 ## Robot dimensions
 
-The model still has articubot's dimensions. When Hiro's chassis is decided, update:
+The model still has articubot's dimensions. When Nova's chassis is decided, update:
 
 - `description/robot_core.xacro` — chassis size, wheel radius/offsets, masses
 - `config/my_controllers.yaml` — `wheel_separation`, `wheel_radius`
@@ -203,4 +203,4 @@ The model still has articubot's dimensions. When Hiro's chassis is decided, upda
 `launch/launch_robot.launch.py`, `launch/rplidar.launch.py` and the `RealRobot` block in
 `description/ros2_control.xacro` are upstream placeholders: they assume an Arduino motor
 controller (`diffdrive_arduino`, built from source) on `/dev/ttyUSB0` and an RPLidar.
-They need Hiro's actual motor driver, encoder counts, serial ports and lidar model.
+They need Nova's actual motor driver, encoder counts, serial ports and lidar model.

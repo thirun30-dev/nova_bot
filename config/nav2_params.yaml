@@ -1,5 +1,5 @@
-# Nav2 parameters for Hiro, based on the stock nav2_bringup (Jazzy) file.
-# Changes from stock are marked 'Hiro:'.
+# Nav2 parameters for Nova, based on the stock nav2_bringup (Jazzy) file.
+# Changes from stock are marked 'Nova:'.
 amcl:
   ros__parameters:
     alpha1: 0.2
@@ -282,7 +282,7 @@ planner_server:
     expected_planner_frequency: 20.0
     planner_plugins: ["GridBased"]
     costmap_update_timeout: 1.0
-    # Hiro: Smac 2D instead of NavFn. NavFn intermittently fails with "Failed to create a
+    # Nova: Smac 2D instead of NavFn. NavFn intermittently fails with "Failed to create a
     # plan from potential" when the goal is near the costmap edge (e.g. the dock at (0, 0) on
     # a small SLAM map). Smac 2D (A* on the costmap) handles map borders reliably.
     GridBased:

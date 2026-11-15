@@ -48,7 +48,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-3 px-5 py-4">
           <div className="grid size-9 place-items-center rounded-lg bg-gradient-to-br from-accent to-accent-2 text-base font-bold text-white">H</div>
           <div className="min-w-0">
-            <div className="truncate font-semibold">{S?.robot ?? "Hiro AMR"}</div>
+            <div className="truncate font-semibold">{S?.robot ?? "Nova AMR"}</div>
             <div className="text-xs text-slate-400">Warehouse robot control</div>
           </div>
         </div>
@@ -85,7 +85,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <Icon name="menu" className="size-5" />
           </button>
           <h1 className="mr-2 text-base font-semibold">
-            {SECTIONS.find((s) => isActive(path, s.href))?.label ?? "Hiro"}
+            {SECTIONS.find((s) => isActive(path, s.href))?.label ?? "Nova"}
           </h1>
           <div className="order-last flex w-full flex-wrap items-center gap-1.5 text-xs lg:order-none lg:w-auto lg:gap-2">
             <Pill><Dot tone={connTone} /><b>{connText}</b></Pill>

@@ -12,7 +12,7 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
 
-    package_name = 'hiro_bot'
+    package_name = 'nova_bot'
     pkg_share = get_package_share_directory(package_name)
 
     # robot_state_publisher with the simulated (gz_ros2_control) hardware
@@ -92,7 +92,7 @@ def generate_launch_description():
         package='ros_gz_sim',
         executable='create',
         arguments=['-topic', 'robot_description',
-                   '-name', 'hiro',
+                   '-name', 'nova',
                    '-z', '0.1'],
         output='screen'
     )

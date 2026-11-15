@@ -19,7 +19,7 @@ def generate_launch_description():
 
     nav2_bringup = get_package_share_directory('nav2_bringup')
     default_params = os.path.join(
-        get_package_share_directory('hiro_bot'), 'config', 'nav2_params.yaml')
+        get_package_share_directory('nova_bot'), 'config', 'nav2_params.yaml')
 
     navigation = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(

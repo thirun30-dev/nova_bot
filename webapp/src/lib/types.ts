@@ -1,4 +1,4 @@
-// Shapes of the hiro_dashboard.py API (scripts/hiro_dashboard.py).
+// Shapes of the nova_dashboard.py API (scripts/nova_dashboard.py).
 
 export type Pose = { x: number; y: number; yaw: number; frame: "map" | "odom" };
 

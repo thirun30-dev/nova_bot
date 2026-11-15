@@ -25,7 +25,7 @@ export default function MapSection() {
     const name = prompt("Map name (saved with the robot's maps):", "warehouse_map");
     if (!name) return;
     if (await act("save_map", { name }, "Saving map…")) {
-      try { localStorage.setItem("hiro_map", name.replace(/[^A-Za-z0-9_-]/g, "") || "warehouse_map"); } catch { /* ignore */ }
+      try { localStorage.setItem("nova_map", name.replace(/[^A-Za-z0-9_-]/g, "") || "warehouse_map"); } catch { /* ignore */ }
     }
   };
 

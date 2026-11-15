@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(hiro_bot)
+project(nova_bot)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -38,7 +38,7 @@ install(
 )
 
 install(
-  PROGRAMS scripts/hiro_dashboard.py scripts/hiro_tasks.py
+  PROGRAMS scripts/nova_dashboard.py scripts/nova_tasks.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

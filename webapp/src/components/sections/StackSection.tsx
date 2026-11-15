@@ -14,8 +14,8 @@ const ORDER: ServiceName[] = ["robot", "slam", "localization", "navigation"];
 
 function pref(k: string, v?: string): string | null {
   try {
-    if (v === undefined) return localStorage.getItem("hiro_" + k);
-    localStorage.setItem("hiro_" + k, v);
+    if (v === undefined) return localStorage.getItem("nova_" + k);
+    localStorage.setItem("nova_" + k, v);
   } catch { /* private mode */ }
   return null;
 }

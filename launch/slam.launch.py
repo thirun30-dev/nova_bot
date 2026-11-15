@@ -12,7 +12,7 @@ def generate_launch_description():
     """Mapping with slam_toolbox, using the launch file shipped with the installed distro."""
 
     default_params = os.path.join(
-        get_package_share_directory('hiro_bot'), 'config', 'mapper_params_online_async.yaml')
+        get_package_share_directory('nova_bot'), 'config', 'mapper_params_online_async.yaml')
 
     slam = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([os.path.join(

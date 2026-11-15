@@ -16,7 +16,7 @@ twist_mux:
         timeout : 0.5
         priority: 20
       dashboard:
-        topic   : cmd_vel_dashboard # TwistStamped, from hiro_dashboard teleop
+        topic   : cmd_vel_dashboard # TwistStamped, from nova_dashboard teleop
         timeout : 0.5
         priority: 50
       joystick:

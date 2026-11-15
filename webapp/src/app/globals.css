@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Hiro control console: one dark operations theme (the robot UI is used on the
+/* Nova control console: one dark operations theme (the robot UI is used on the
    warehouse floor and in labs, often on tablets; dark keeps the map readable). */
 @theme {
   --color-ink-950: #070b14;

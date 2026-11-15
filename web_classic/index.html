@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hiro AMR Control</title>
+<title>Nova AMR Control</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%233b82f6'/%3E%3Ctext x='16' y='23' font-family='sans-serif' font-size='19' font-weight='700' fill='white' text-anchor='middle'%3EH%3C/text%3E%3C/svg%3E">
 <style>
 :root {
@@ -182,7 +182,7 @@ select { font: inherit; color: var(--text); background: var(--bg); border: 1px s
 </head>
 <body>
 <header>
-  <div class="brand"><div class="logo">H</div><div><span id="robot-name">Hiro AMR</span><small>Warehouse fleet control</small></div></div>
+  <div class="brand"><div class="logo">H</div><div><span id="robot-name">Nova AMR</span><small>Warehouse fleet control</small></div></div>
   <div class="pills">
     <span class="pill"><span class="dot" id="conn-dot"></span><b id="conn">Connecting…</b></span>
     <span class="pill">Mode <b id="mode">–</b></span>
@@ -330,7 +330,7 @@ select { font: inherit; color: var(--text); background: var(--bg); border: 1px s
   // ---------------- api ----------------
   const params = new URLSearchParams(location.search);
   let token = params.get('token');
-  try { if (token) localStorage.setItem('hiro_token', token); else token = localStorage.getItem('hiro_token'); } catch (e) {}
+  try { if (token) localStorage.setItem('nova_token', token); else token = localStorage.getItem('nova_token'); } catch (e) {}
   const q = token ? `?token=${encodeURIComponent(token)}` : '';
   const $ = id => document.getElementById(id);
 
@@ -619,7 +619,7 @@ select { font: inherit; color: var(--text); background: var(--bg); border: 1px s
   const STATE_TXT = { stopped: 'stopped', starting: 'starting…', running: 'running', stopping: 'stopping…',
     failed: 'failed', external: 'running (external)' };
   let stackOpts = null, stackKey = '', logSvc = null, logTimer = null;
-  const pref = (k, v) => { try { if (v === undefined) return localStorage.getItem('hiro_' + k); localStorage.setItem('hiro_' + k, v); } catch (e) {} };
+  const pref = (k, v) => { try { if (v === undefined) return localStorage.getItem('nova_' + k); localStorage.setItem('nova_' + k, v); } catch (e) {} };
   const withQ = (path, extra) => `/api/${path}${q}${q ? '&' : '?'}${extra}`;
 
   function fillSelect(sel, items, chosen, empty) {

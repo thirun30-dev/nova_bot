@@ -14,17 +14,17 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    """Whole Hiro AMR in simulation, in one command.
+    """Whole Nova AMR in simulation, in one command.
 
     Gazebo + controllers + velocity chain, then either SLAM (mode:=slam, default)
     or AMCL on a saved map (mode:=localization), then Nav2 and RViz.
 
-      ros2 launch hiro_bot bringup_sim.launch.py
-      ros2 launch hiro_bot bringup_sim.launch.py mode:=localization
-      ros2 launch hiro_bot bringup_sim.launch.py mode:=localization map:=/path/to/map.yaml
+      ros2 launch nova_bot bringup_sim.launch.py
+      ros2 launch nova_bot bringup_sim.launch.py mode:=localization
+      ros2 launch nova_bot bringup_sim.launch.py mode:=localization map:=/path/to/map.yaml
     """
 
-    pkg_share = get_package_share_directory('hiro_bot')
+    pkg_share = get_package_share_directory('nova_bot')
     launch_dir = os.path.join(pkg_share, 'launch')
 
     def include(name, args, condition=None):
@@ -66,8 +66,8 @@ def generate_launch_description():
                          IfCondition(LaunchConfiguration('nav')))
 
     dashboard = Node(
-        package='hiro_bot',
-        executable='hiro_dashboard.py',
+        package='nova_bot',
+        executable='nova_dashboard.py',
         parameters=[{'use_sim_time': True,
                      'host': LaunchConfiguration('dashboard_host'),
                      'port': LaunchConfiguration('dashboard_port')}],

@@ -1,11 +1,11 @@
-# Hiro web control (Next.js + Tailwind CSS)
+# Nova web control (Next.js + Tailwind CSS)
 
-The browser UI for the Hiro AMR. `npm run build` exports static files into `../web`, which the
-`hiro_dashboard.py` ROS node serves on port 8080, so the robot needs no Node.js at runtime.
+The browser UI for the Nova AMR. `npm run build` exports static files into `../web`, which the
+`nova_dashboard.py` ROS node serves on port 8080, so the robot needs no Node.js at runtime.
 
 ```bash
 npm install
-npm run build        # then: cd ~/hiro_ws && colcon build --symlink-install --packages-select hiro_bot
+npm run build        # then: cd ~/hiro_ws && colcon build --symlink-install --packages-select nova_bot
 ```
 
 Development with hot reload: start the dashboard with `-p cors_origin:=http://localhost:3000`, then

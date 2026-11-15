@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Run and check Hiro's AMR tasks against a running simulation.
+"""Run and check Nova's AMR tasks against a running simulation.
 
-Start the bot first (ros2 launch hiro_bot bringup_sim.launch.py), then:
+Start the bot first (ros2 launch nova_bot bringup_sim.launch.py), then:
 
-  python3 hiro_tasks.py drive                 # Task 1: drive forward/turn, check odometry
-  python3 hiro_tasks.py map                   # Task 2: check SLAM is building /map
-  python3 hiro_tasks.py initpose 0 0 0        # set the AMCL pose (localization mode)
-  python3 hiro_tasks.py nav 3 0 [yaw]         # Task 3: Nav2 goal to (x, y)
-  python3 hiro_tasks.py patrol 3,0 3,-2 0,0   # Task 4: chain of waypoints
+  python3 nova_tasks.py drive                 # Task 1: drive forward/turn, check odometry
+  python3 nova_tasks.py map                   # Task 2: check SLAM is building /map
+  python3 nova_tasks.py initpose 0 0 0        # set the AMCL pose (localization mode)
+  python3 nova_tasks.py nav 3 0 [yaw]         # Task 3: Nav2 goal to (x, y)
+  python3 nova_tasks.py patrol 3,0 3,-2 0,0   # Task 4: chain of waypoints
 """
 import math
 import sys
@@ -35,7 +35,7 @@ def pose(nav, x, y, yaw=0.0):
 
 class Probe(Node):
     def __init__(self):
-        super().__init__('hiro_tasks', parameter_overrides=[
+        super().__init__('nova_tasks', parameter_overrides=[
             rclpy.parameter.Parameter('use_sim_time', value=True)])
         self.odom = None
         self.map = None

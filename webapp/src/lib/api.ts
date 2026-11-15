@@ -1,6 +1,6 @@
-// Small client for the hiro_dashboard.py HTTP API.
+// Small client for the nova_dashboard.py HTTP API.
 //
-// Production: the static export is served by hiro_dashboard.py itself, so the API is
+// Production: the static export is served by nova_dashboard.py itself, so the API is
 // same-origin. Development (`npm run dev`): set NEXT_PUBLIC_ROBOT_API, e.g.
 // http://localhost:8080, and start the dashboard with -p cors_origin:=http://localhost:3000.
 
@@ -15,8 +15,8 @@ export function initToken(): string | null {
   if (typeof window === "undefined") return null;
   const fromUrl = new URLSearchParams(window.location.search).get("token");
   try {
-    if (fromUrl) localStorage.setItem("hiro_token", fromUrl);
-    token = fromUrl ?? localStorage.getItem("hiro_token");
+    if (fromUrl) localStorage.setItem("nova_token", fromUrl);
+    token = fromUrl ?? localStorage.getItem("nova_token");
   } catch {
     token = fromUrl;
   }

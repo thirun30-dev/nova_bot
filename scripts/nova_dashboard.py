@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Hiro AMR web dashboard: a ROS 2 node with a built-in HTTP server.
+"""Nova AMR web dashboard: a ROS 2 node with a built-in HTTP server.
 
-    ros2 run hiro_bot hiro_dashboard.py                      # http://localhost:8080
-    ros2 run hiro_bot hiro_dashboard.py --ros-args -p host:=0.0.0.0 -p token:=secret
+    ros2 run nova_bot nova_dashboard.py                      # http://localhost:8080
+    ros2 run nova_bot nova_dashboard.py --ros-args -p host:=0.0.0.0 -p token:=secret
 
 No rosbridge needed. The browser gets live state over Server-Sent Events
 (/api/stream) and controls the robot through small JSON POST endpoints:
@@ -34,7 +34,7 @@ Robot stack (start/stop ROS launch files from the browser; whitelisted, never ar
       navigation = robot + AMCL on a saved map + Nav2   (do warehouse tasks)
 
 Launches started here are stopped when the dashboard exits. Run the dashboard on its own
-(ros2 launch hiro_bot web_control.launch.py) and drive everything from the page.
+(ros2 launch nova_bot web_control.launch.py) and drive everything from the page.
 
 Safety: the e-stop is a twist_mux lock (priority 255), so it blocks every
 velocity source, Nav2 included. Dashboard teleop goes to its own mux input
@@ -233,7 +233,7 @@ class Stack:
         if not self.node.get_parameter('stack_control').value:
             raise ValueError('stack control is disabled (stack_control:=false)')
         sim = 'true' if self.node.get_parameter('use_sim_time').value else 'false'
-        base = ['ros2', 'launch', 'hiro_bot']
+        base = ['ros2', 'launch', 'nova_bot']
         if name == 'robot':
             if self.kind == 'sim':
                 world = str(o.get('world') or self.node.get_parameter('default_world').value)
@@ -462,12 +462,12 @@ def r(v, n=3):
 
 class Dashboard(Node):
     def __init__(self):
-        super().__init__('hiro_dashboard')
+        super().__init__('nova_dashboard')
         self.declare_parameter('host', '127.0.0.1')
         self.declare_parameter('port', 8080)
         self.declare_parameter('token', '')
-        self.declare_parameter('robot_name', 'Hiro AMR')
-        share = self.share = get_package_share_directory('hiro_bot')
+        self.declare_parameter('robot_name', 'Nova AMR')
+        share = self.share = get_package_share_directory('nova_bot')
         self.declare_parameter('stations_file',
                                os.path.join(share, 'config', 'warehouse_stations.yaml'))
         self.declare_parameter('web_dir', os.path.join(share, 'web'))
@@ -857,7 +857,7 @@ class Dashboard(Node):
         os.makedirs(os.path.dirname(self.user_stations), exist_ok=True)
         tmp = self.user_stations + '.tmp'
         with open(tmp, 'w') as f:
-            f.write('# Warehouse stations, edited from the Hiro dashboard (map frame, m / rad).\n')
+            f.write('# Warehouse stations, edited from the Nova dashboard (map frame, m / rad).\n')
             yaml.safe_dump({'stations': list(self.stations.values())}, f, sort_keys=False)
         os.replace(tmp, self.user_stations)
         with self.lock:
@@ -1184,7 +1184,7 @@ def main():
     http_thread = threading.Thread(target=server.serve_forever, daemon=True)
     http_thread.start()
     shown = 'localhost' if host in ('0.0.0.0', '127.0.0.1') else host
-    node.get_logger().info(f'Hiro dashboard on http://{shown}:{port}'
+    node.get_logger().info(f'Nova dashboard on http://{shown}:{port}'
                            + ('  (token required)' if node.get_parameter('token').value else ''))
     try:
         executor.spin()

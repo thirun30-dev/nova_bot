@@ -8,12 +8,12 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
-    """Only the Hiro web dashboard. Everything else (robot / sim, SLAM, localization,
+    """Only the Nova web dashboard. Everything else (robot / sim, SLAM, localization,
     Nav2) is started and stopped from the page's "Robot stack" panel.
 
-      ros2 launch hiro_bot web_control.launch.py                      # sim, http://localhost:8080
-      ros2 launch hiro_bot web_control.launch.py host:=0.0.0.0 token:=<secret>
-      ros2 launch hiro_bot web_control.launch.py robot:=real use_sim_time:=false
+      ros2 launch nova_bot web_control.launch.py                      # sim, http://localhost:8080
+      ros2 launch nova_bot web_control.launch.py host:=0.0.0.0 token:=<secret>
+      ros2 launch nova_bot web_control.launch.py robot:=real use_sim_time:=false
     """
     arg = LaunchConfiguration
     return LaunchDescription([
@@ -28,12 +28,12 @@ def generate_launch_description():
         DeclareLaunchArgument('token', default_value='',
                               description='Access token (required when host is not localhost)'),
         DeclareLaunchArgument('world', default_value='obstacles.world',
-                              description='Default Gazebo world in hiro_bot/worlds'),
+                              description='Default Gazebo world in nova_bot/worlds'),
         DeclareLaunchArgument('map_dir', default_value=os.path.expanduser('~/hiro_ws/maps'),
                               description='Where maps (and stations.yaml) are saved and loaded'),
         Node(
-            package='hiro_bot',
-            executable='hiro_dashboard.py',
+            package='nova_bot',
+            executable='nova_dashboard.py',
             parameters=[{
                 'use_sim_time': ParameterValue(arg('use_sim_time'), value_type=bool),
                 'host': arg('host'),

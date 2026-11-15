@@ -1,0 +1,6 @@
+[submodule "external/serial_motor_demo"]
+	path = external/serial_motor_demo
+	url = https://github.com/joshnewans/serial_motor_demo.git
+[submodule "external/ros_arduino_bridge"]
+	path = external/ros_arduino_bridge
+	url = https://github.com/joshnewans/ros_arduino_bridge.git
