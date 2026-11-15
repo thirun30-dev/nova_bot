@@ -518,8 +518,9 @@ class Dashboard(Node):
         self.declare_parameter('autostart', '')              # '' | mapping | navigation
         self.declare_parameter('autostart_map', '')          # saved map name for navigation
         self.declare_parameter('autostart_headless', False)  # Gazebo without its GUI
-        # Allowed browser origin for the API when the UI is served elsewhere, e.g. the
-        # Next.js dev server (http://localhost:3000). Empty = same origin only.
+        # Allowed browser origin(s) for the API when the UI is served elsewhere, e.g. the
+        # Next.js dev server (http://localhost:3000) or the Vercel deployment reached through
+        # a Cloudflare tunnel. Comma-separated; empty = same origin only.
         self.declare_parameter('cors_origin', '')
 
         self.lock = threading.Lock()
@@ -1013,7 +1014,8 @@ class Dashboard(Node):
 def make_handler(node):
     web_dir = node.get_parameter('web_dir').value
     token = node.get_parameter('token').value
-    cors = node.get_parameter('cors_origin').value
+    cors = {o.strip().rstrip('/') for o in node.get_parameter('cors_origin').value.split(',')
+            if o.strip()}
     types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript',
              '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png',
              '.ico': 'image/x-icon', '.json': 'application/json', '.txt': 'text/plain',
@@ -1044,8 +1046,9 @@ def make_handler(node):
             return q.get('token', [''])[0] == token or self.headers.get('X-Token') == token
 
         def end_headers(self):
-            if cors and self.headers.get('Origin') == cors:
-                self.send_header('Access-Control-Allow-Origin', cors)
+            origin = self.headers.get('Origin')
+            if origin in cors:
+                self.send_header('Access-Control-Allow-Origin', origin)
                 self.send_header('Vary', 'Origin')
             super().end_headers()
 
@@ -1125,8 +1128,19 @@ def make_handler(node):
                 if svc not in SERVICES:
                     return self.send(404, {'error': 'unknown service'})
                 return self.send(200, {'service': svc, 'lines': node.stack.log(svc)})
-            if path == '/api/state':
-                return self.send(200, node.snapshot())
+            if path == '/api/state':     # polling fallback when a proxy buffers /api/stream
+                q = parse_qs(urlparse(self.path).query)
+                try:
+                    since = int(q.get('since', ['0'])[0])
+                except ValueError:
+                    since = 0
+                return self.send(200, node.snapshot(since_event=since))
+            if path == '/api/camera.jpg':  # single frame, for the same fallback
+                with node.jpeg_cond:
+                    frame = node.jpeg
+                if frame is None:
+                    return self.send(404, {'error': 'no camera frame'})
+                return self.send(200, frame, 'image/jpeg')
             self.send(404, {'error': 'not found'})
 
         def stream(self):

@@ -195,9 +195,17 @@ export function DrivePad({ large = false }: { large?: boolean }) {
 
 /* ---------------- camera ---------------- */
 export function Camera() {
-  const { state: S } = useRobot();
+  const { state: S, transport } = useRobot();
+  const [tick, setTick] = useState(0);
+  // when the live stream is buffered (tunnel), MJPEG is too: refresh single frames instead
+  useEffect(() => {
+    if (transport !== "poll" || !S?.camera) return;
+    const id = setInterval(() => setTick((t) => t + 1), 200);
+    return () => clearInterval(id);
+  }, [transport, S?.camera]);
   // the <img> (and its MJPEG connection) goes away when the section is left
-  const src = S?.camera ? apiUrl("camera.mjpg") : null;
+  const src = !S?.camera ? null
+    : transport === "poll" ? apiUrl("camera.jpg", { n: String(tick) }) : apiUrl("camera.mjpg");
   return (
     <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-ink-950">
       {/* eslint-disable-next-line @next/next/no-img-element */}

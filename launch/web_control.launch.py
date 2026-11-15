@@ -27,6 +27,9 @@ def generate_launch_description():
         DeclareLaunchArgument('port', default_value='8080'),
         DeclareLaunchArgument('token', default_value='',
                               description='Access token (required when host is not localhost)'),
+        DeclareLaunchArgument('cors_origin', default_value=' ',
+                              description="Browser origin(s) allowed to call the API, e.g. "
+                                          "'https://nova.vercel.app' (comma-separated)"),
         DeclareLaunchArgument('world', default_value='obstacles.world',
                               description='Default Gazebo world in nova_bot/worlds'),
         DeclareLaunchArgument('map_dir', default_value=os.path.expanduser('~/nova_ws/maps'),
@@ -49,6 +52,7 @@ def generate_launch_description():
                 'host': arg('host'),
                 'port': ParameterValue(arg('port'), value_type=int),
                 'token': ParameterValue(arg('token'), value_type=str),
+                'cors_origin': ParameterValue(arg('cors_origin'), value_type=str),
                 'robot_launch': arg('robot'),
                 'default_world': arg('world'),
                 'map_dir': arg('map_dir'),

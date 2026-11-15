@@ -128,6 +128,25 @@ and `headless:=true`) to start a preset as soon as the dashboard is up, as `nova
 something publishes `/battery_state`. `robot:=real` uses `launch_robot.launch.py` (see
 [Real robot](#real-robot)); `robot_args:='serial_port:=... lidar_port:=...'` passes its arguments.
 
+### From anywhere: Vercel + Cloudflare tunnel
+
+The UI deployed on Vercel is only static files; the browser talks to the robot directly, so the
+robot needs a public HTTPS address. `nova_run --tunnel` opens a Cloudflare quick tunnel (no
+account) and prints a ready link:
+
+```bash
+bash ~/nova_ws/src/nova_bot/scripts/setup_ubuntu.sh --cloudflared    # once, per machine
+echo 'NOVA_WEB_URL=https://<app>.vercel.app' >> ~/.config/nova/robot.env   # once
+nova_run --real --tunnel        # or: nova_run --tunnel (simulation)
+#   Website:  https://<app>.vercel.app/?api=https://<random>.trycloudflare.com&token=<token>
+```
+
+Open the `Website:` link; the page remembers the robot URL and token. The tunnel URL changes on
+every run, so use the new link each time (the current one is also in `~/.config/nova/tunnel_url`).
+The token is always on with `--tunnel`; anyone with the link can drive the robot, so don't share
+it. `NOVA_WEB_URL` (or `--web-url`) is passed to the dashboard as `cors_origin`; that parameter takes
+a comma-separated list of origins.
+
 ### Changing the UI
 
 ```bash

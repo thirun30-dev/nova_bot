@@ -3,11 +3,28 @@
 # Run from anywhere:  bash src/nova_bot/scripts/setup_ubuntu.sh
 #                     bash src/nova_bot/scripts/setup_ubuntu.sh --robot   (robot computer:
 #                     ROS base without desktop/Gazebo/RViz, serial port access)
+#                     bash src/nova_bot/scripts/setup_ubuntu.sh --cloudflared   (only install
+#                     cloudflared into ~/.local/bin, for nova_run --tunnel; no sudo)
 # Safe to re-run: it skips the ROS install if /opt/ros/jazzy already exists.
 set -euo pipefail
 
 ROBOT=false
 [ "${1:-}" = "--robot" ] && ROBOT=true
+
+install_cloudflared() {
+    case "$(uname -m)" in
+        x86_64) arch=amd64 ;; aarch64|arm64) arch=arm64 ;; armv7l|armhf) arch=arm ;;
+        *) echo "cloudflared: unsupported CPU $(uname -m)" >&2; return 1 ;;
+    esac
+    mkdir -p "$HOME/.local/bin"
+    echo "==> Installing cloudflared ($arch) into ~/.local/bin"
+    curl -fL --progress-bar -o "$HOME/.local/bin/cloudflared.tmp" \
+        "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-$arch"
+    chmod +x "$HOME/.local/bin/cloudflared.tmp"
+    mv "$HOME/.local/bin/cloudflared.tmp" "$HOME/.local/bin/cloudflared"
+    "$HOME/.local/bin/cloudflared" --version
+}
+if [ "${1:-}" = "--cloudflared" ]; then install_cloudflared; exit; fi
 
 ROS_DISTRO_NAME=jazzy
 PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

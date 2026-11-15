@@ -25,6 +25,9 @@
 # Common:
 #   --lan            reachable from other devices, with a token (kept in ~/.config/nova/token)
 #   --local          real robot, but only reachable from the robot computer itself
+#   --tunnel         also reachable from the internet through a Cloudflare quick tunnel
+#                    (needs cloudflared); prints a link for the website hosted on Vercel
+#   --web-url URL    that website, e.g. https://nova.vercel.app (or NOVA_WEB_URL in robot.env)
 #   --port N         dashboard port (default 8080)
 #   --no-browser     do not open the dashboard window
 set -u
@@ -35,10 +38,10 @@ MAP_DIR="$HOME/nova_ws/maps"
 CONF_DIR="$HOME/.config/nova"
 ROS_DISTRO_NAME="${ROS_DISTRO:-jazzy}"
 
-usage() { sed -n '2,30p' "$(readlink -f "${BASH_SOURCE[0]}")" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,33p' "$(readlink -f "${BASH_SOURCE[0]}")" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 # saved real-robot defaults (plain KEY=value lines)
-NOVA_ARDUINO="" NOVA_LIDAR="" NOVA_LIDAR_BAUD=115200 NOVA_CPR=3436 NOVA_CAMERA=false
+NOVA_WEB_URL="" NOVA_ARDUINO="" NOVA_LIDAR="" NOVA_LIDAR_BAUD=115200 NOVA_CPR=3436 NOVA_CAMERA=false
 # shellcheck disable=SC1091
 [ -f "$CONF_DIR/robot.env" ] && . "$CONF_DIR/robot.env"
 
@@ -46,6 +49,7 @@ mode=mapping map="" world="obstacles.world" headless=false lan="" port=8080 brow
 real=false arduino="$NOVA_ARDUINO" lidar_dev="$NOVA_LIDAR" lidar_baud="$NOVA_LIDAR_BAUD"
 cpr="$NOVA_CPR" lidar=true camera="$NOVA_CAMERA"
 enc_args=()
+tunnel=false web_url="${NOVA_WEB_URL%/}"
 while [ $# -gt 0 ]; do                      # the mode word may come before or after options
     case "$1" in
         map|mapping|slam) mode=mapping; shift ;;
@@ -67,6 +71,8 @@ while [ $# -gt 0 ]; do                      # the mode word may come before or a
         --spin) enc_args+=(--spin "${2:?--spin needs a PWM value}"); shift 2 ;;
         --lan) lan=true; shift ;;
         --local) lan=false; shift ;;
+        --tunnel) tunnel=true; shift ;;
+        --web-url) web_url="${2:?--web-url needs a URL}"; web_url="${web_url%/}"; shift 2 ;;
         --port) port="${2:?--port needs a number}"; shift 2 ;;
         --no-browser) browser=false; shift ;;
         -h|--help) usage ;;
@@ -75,6 +81,14 @@ while [ $# -gt 0 ]; do                      # the mode word may come before or a
     esac
 done
 [ -n "$lan" ] || lan=$real                 # the real robot is normally used over Wi-Fi
+if $tunnel && ! command -v cloudflared >/dev/null; then
+    echo "nova_run: --tunnel needs cloudflared; install it with:" >&2
+    echo "  bash $(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/setup_ubuntu.sh --cloudflared" >&2
+    exit 1
+fi
+if [ -n "$web_url" ] && [[ $web_url != https://* ]]; then
+    echo "nova_run: --web-url must start with https:// (got '$web_url')" >&2; exit 1
+fi
 [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] || browser=false    # headless robot computer
 
 # ---- real robot: serial devices ----
@@ -148,8 +162,8 @@ if [ "$mode" = navigation ]; then
 fi
 
 host=127.0.0.1 token=""
-if $lan; then
-    host=0.0.0.0
+$lan && host=0.0.0.0
+if $lan || $tunnel; then            # the tunnel makes it public: a token is a must
     token="${NOVA_TOKEN:-}"
     if [ -z "$token" ]; then        # one token per machine, so bookmarks keep working
         if [ ! -s "$CONF_DIR/token" ]; then
@@ -196,6 +210,7 @@ if $lan; then
     ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
     echo "    From other devices: http://${ip:-<robot-ip>}:$port/?token=$token"
 fi
+$tunnel && echo "    Internet: starting Cloudflare tunnel..."
 echo "    Ctrl-C stops everything."
 $browser && open_when_up &
 
@@ -209,6 +224,34 @@ else
     args+=(robot:=sim use_sim_time:=true world:="$world" headless:="$headless")
 fi
 [ -n "$token" ] && args+=(token:="$token")
+[ -n "$web_url" ] && args+=(cors_origin:="$web_url")
+
+# ---- Cloudflare quick tunnel: a random https://*.trycloudflare.com URL, new on every run ----
+tunnel_pid=""
+if $tunnel; then
+    mkdir -p "$CONF_DIR"; tlog="$(mktemp -t nova-tunnel.XXXXXX)"
+    setsid cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$port" >"$tlog" 2>&1 &
+    tunnel_pid=$!
+    (   for _ in $(seq 1 60); do
+            turl="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$tlog" | head -1)"
+            if [ -n "$turl" ]; then
+                echo "$turl" > "$CONF_DIR/tunnel_url"
+                echo
+                echo "==> Internet: $turl/?token=$token"
+                if [ -n "$web_url" ]; then
+                    echo "    Website:  $web_url/?api=$turl&token=$token"
+                else
+                    echo "    (pass --web-url https://<app>.vercel.app for a link to the Vercel site)"
+                fi
+                echo
+                exit 0
+            fi
+            kill -0 "$tunnel_pid" 2>/dev/null || break
+            sleep 0.5
+        done
+        echo "nova_run: Cloudflare tunnel did not start; its log: $tlog" >&2
+    ) &
+fi
 [ -n "$mode" ] && args+=(autostart:="$mode")
 [ -n "$map" ] && args+=(map:="$map")
 
@@ -242,4 +285,5 @@ for _ in $(seq 1 40); do
     [ -z "$alive" ] && break; sleep 0.5
 done
 for k in ${alive:-}; do kill -TERM "$k" 2>/dev/null; done
+[ -n "$tunnel_pid" ] && kill -TERM "$tunnel_pid" 2>/dev/null
 echo "==> Nova stopped."
