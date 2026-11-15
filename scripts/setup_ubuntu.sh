@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # One-time setup for the Nova workspace on Ubuntu 24.04 (ROS 2 Jazzy + Gazebo Harmonic).
 # Run from anywhere:  bash src/nova_bot/scripts/setup_ubuntu.sh
+#                     bash src/nova_bot/scripts/setup_ubuntu.sh --robot   (robot computer:
+#                     ROS base without desktop/Gazebo/RViz, serial port access)
 # Safe to re-run: it skips the ROS install if /opt/ros/jazzy already exists.
 set -euo pipefail
+
+ROBOT=false
+[ "${1:-}" = "--robot" ] && ROBOT=true
 
 ROS_DISTRO_NAME=jazzy
 PKG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -25,7 +30,11 @@ if [ ! -f "/opt/ros/$ROS_DISTRO_NAME/setup.bash" ]; then
         "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ver}/ros2-apt-source_${ver}.${VERSION_CODENAME}_all.deb"
     sudo dpkg -i /tmp/ros2-apt-source.deb
     sudo apt update
-    sudo apt install -y "ros-$ROS_DISTRO_NAME-desktop"
+    if $ROBOT; then
+        sudo apt install -y "ros-$ROS_DISTRO_NAME-ros-base"
+    else
+        sudo apt install -y "ros-$ROS_DISTRO_NAME-desktop"
+    fi
 fi
 
 echo "==> Installing build tools"
@@ -40,9 +49,30 @@ set +u
 source "/opt/ros/$ROS_DISTRO_NAME/setup.bash"
 set -u
 
+echo "==> Linking the packages in nova_bot/external into the workspace"
+git -C "$PKG_DIR" submodule update --init
+for d in "$PKG_DIR"/external/*/; do
+    name="$(basename "$d")"
+    # colcon does not look inside a package (nova_bot), so ROS packages there get a src/ link
+    if [ -n "$(find "$d" -maxdepth 2 -name package.xml -print -quit)" ] && [ ! -e "$WS_DIR/src/$name" ]; then
+        ln -s "nova_bot/external/$name" "$WS_DIR/src/$name"
+        echo "    src/$name -> nova_bot/external/$name"
+    fi
+done
+
 echo "==> Installing nova_bot dependencies (from package.xml)"
 cd "$WS_DIR"
-rosdep install --from-paths src --ignore-src -r -y
+if $ROBOT; then
+    # the robot computer runs no simulation or RViz
+    rosdep install --from-paths src --ignore-src -r -y \
+        --skip-keys "ros_gz_sim ros_gz_bridge ros_gz_image gz_ros2_control rviz2"
+    if ! id -nG "$USER" | grep -qw dialout; then
+        echo "==> Adding $USER to 'dialout' for the Arduino and lidar serial ports (log in again after)"
+        sudo usermod -aG dialout "$USER"
+    fi
+else
+    rosdep install --from-paths src --ignore-src -r -y
+fi
 
 echo "==> Building workspace at $WS_DIR"
 colcon build --symlink-install
@@ -57,6 +87,10 @@ Done. In every new terminal run:
     source /opt/ros/$ROS_DISTRO_NAME/setup.bash
     source $WS_DIR/install/setup.bash
 
+$($ROBOT && echo "Robot computer: flash firmware/NovaArduinoBridge, plug in the Arduino and RPLidar, then:
+    nova_run encoders        # measure the encoder CPR (see README, Real robot)
+    nova_run --real          # robot + website; open the printed link from your laptop
+")
 Then start the simulation and open the web dashboard with one command:
     nova_run                 # map a new area   (nova_run --help for all options)
     nova_run nav             # work on the newest saved map

@@ -5,8 +5,9 @@ It is based on the `new_gazebo` branch of
 [joshnewans/articubot_one](https://github.com/joshnewans/articubot_one) and targets
 **ROS 2 Jazzy on Ubuntu 24.04 with Gazebo Harmonic**.
 
-Current stage: **simulation** (drive, map, navigate). Real-hardware bringup is still
-the upstream placeholder — see [Real robot](#real-robot-not-done-yet).
+Runs in **simulation** (drive, map, navigate) and on the **real robot** (Raspberry Pi +
+Arduino with a TB6612FNG motor driver + RPLidar), both controlled from the same website;
+see [Real robot](#real-robot).
 
 ## Layout
 
@@ -16,7 +17,9 @@ the upstream placeholder — see [Real robot](#real-robot-not-done-yet).
 | `launch/` | `launch_sim`, `slam`, `navigation`, `localization`, `launch_robot`, … |
 | `config/` | controllers, twist_mux, joystick, Gazebo bridge, slam_toolbox, RViz |
 | `worlds/` | `empty.world`, `obstacles.world` |
-| `scripts/` | `setup_ubuntu.sh` — one-time install + build |
+| `scripts/` | `nova_run`, `setup_ubuntu.sh` (one-time install + build), dashboard, `nova_encoders.py` |
+| `firmware/` | `NovaArduinoBridge`: Arduino firmware (ros_arduino_bridge + TB6612FNG driver) |
+| `external/` | git submodules: `diffdrive_arduino` (ros2_control plugin), `serial_motor_demo`, `ros_arduino_bridge` (upstream firmware) |
 
 ## Setup (Ubuntu 24.04)
 
@@ -122,8 +125,8 @@ Launch arguments: `robot:=sim|real|none`, `use_sim_time`, `host` (`0.0.0.0` expo
 `port`, `token`, `world`, `map_dir`, and `autostart:=mapping|navigation` (with `map:=<saved map>`
 and `headless:=true`) to start a preset as soon as the dashboard is up, as `nova_run` does. On the LAN, always set a token and open
 `http://<robot-ip>:8080/?token=<secret>`; there are no user accounts. Battery shows "n/a" until
-something publishes `/battery_state`. `robot:=real` uses `launch_robot.launch.py`, which is still a
-placeholder (see [Real robot](#real-robot-not-done-yet)).
+something publishes `/battery_state`. `robot:=real` uses `launch_robot.launch.py` (see
+[Real robot](#real-robot)); `robot_args:='serial_port:=... lidar_port:=...'` passes its arguments.
 
 ### Changing the UI
 
@@ -228,9 +231,88 @@ The model still has articubot's dimensions. When Nova's chassis is decided, upda
 - `config/my_controllers.yaml` — `wheel_separation`, `wheel_radius`
 - `description/lidar.xacro`, `description/camera.xacro` — sensor positions
 
-## Real robot (not done yet)
+## Real robot
 
-`launch/launch_robot.launch.py`, `launch/rplidar.launch.py` and the `RealRobot` block in
-`description/ros2_control.xacro` are upstream placeholders: they assume an Arduino motor
-controller (`diffdrive_arduino`, built from source) on `/dev/ttyUSB0` and an RPLidar.
-They need Nova's actual motor driver, encoder counts, serial ports and lidar model.
+The Raspberry Pi on the robot runs everything (ROS, SLAM, Nav2 and the website); you open
+the site from a laptop or phone on the same Wi-Fi. The real base uses the same topics as the
+sim (`diff_cont`, `twist_mux`, `/odom`, `/scan`), so every page of the website works the same.
+
+```
+Website ── nova_dashboard (Pi) ── twist_mux ── diff_cont ── ros2_control + diffdrive_arduino
+                                                             │ USB serial, 57600
+                                                  Arduino (NovaArduinoBridge) ── TB6612FNG ── motors
+                                                             └── encoders (PID on the Arduino)
+                   RPLidar ── rplidar_ros ── /scan ── SLAM / AMCL / Nav2
+```
+
+### 1. Wire and flash the Arduino (Uno / Nano)
+
+`firmware/NovaArduinoBridge` is the upstream ros_arduino_bridge firmware with a TB6612FNG
+driver added (`TB6612_MOTOR_DRIVER` in `NovaArduinoBridge.ino`, pins in `motor_driver.h`):
+
+| TB6612FNG | Arduino | | Encoders | Arduino |
+| --- | --- | --- | --- | --- |
+| PWMA | D6 | | left A / B | D2 / D3 |
+| AIN1 / AIN2 | D7 / D8 | | right A / B | A4 / A5 |
+| PWMB | D9 | | | |
+| BIN1 / BIN2 | D10 / D11 | | | |
+| STBY | D4 | | | |
+| VCC | 5 V | | | |
+| VM | motor battery (+), GND shared with the Arduino | | | |
+
+Motor A (AO1/AO2) is the left wheel, motor B (BO1/BO2) the right. Open
+`firmware/NovaArduinoBridge/NovaArduinoBridge.ino` in the Arduino IDE and upload it.
+
+### 2. Install on the Pi (Ubuntu 24.04 Server)
+
+```bash
+git clone --recurse-submodules git@github.com:thirun30-dev/nova_bot.git ~/hiro_ws/src/nova_bot
+bash ~/hiro_ws/src/nova_bot/scripts/setup_ubuntu.sh --robot    # ROS base, drivers, build, nova_run
+```
+
+`--robot` skips Gazebo and RViz and adds you to the `dialout` group (log in again once).
+It also links the ros2_control hardware plugin, `diffdrive_arduino` (submodule in
+`external/`, `humble` branch; builds on Jazzy), into the workspace.
+
+### 3. Calibrate
+
+With the robot stack stopped and the wheels off the ground:
+
+```bash
+nova_run encoders --spin 120   # both wheels forward 2 s; checks motor and encoder directions
+nova_run encoders              # turn each wheel exactly one revolution by hand: the count is the CPR
+```
+
+Then measure the wheels and save the robot's settings:
+
+- `config/my_controllers.yaml`: `wheel_radius` and `wheel_separation` (centre to centre of the
+  wheels), in metres
+- `~/.config/nova/robot.env` (read by `nova_run`; every line is optional):
+
+  ```bash
+  NOVA_CPR=1440                 # your measured counts per wheel revolution
+  NOVA_LIDAR_BAUD=115200        # RPLidar A1/A2M8 115200, A2M12 256000, C1 460800
+  NOVA_ARDUINO=/dev/serial/by-id/usb-1a86_USB_Serial-if00-port0   # if auto-detect picks wrong
+  NOVA_LIDAR=/dev/serial/by-id/usb-Silicon_Labs_CP2102_..._port0
+  NOVA_CAMERA=true              # USB camera on the Pi
+  ```
+
+`nova_run` finds the two USB-serial devices in `/dev/serial/by-id` on its own: the RPLidar has
+a Silicon Labs CP210x chip, the Arduino is the other one.
+
+### 4. Run
+
+```bash
+nova_run --real                # on the Pi (e.g. over ssh): robot + SLAM + Nav2 + website
+nova_run --real nav            # on the newest saved map
+nova_run --real web            # website only; start the robot from Robot Stack
+```
+
+It prints `http://<pi-ip>:8080/?token=…`; open that on the laptop. The token is created once
+and kept in `~/.config/nova/token` (or set `NOVA_TOKEN`), so the link can be bookmarked.
+Add `--local` to keep the site on the Pi only. Keep a hand near the **E-STOP** the first few
+drives, and start with low speeds on the Drive page.
+
+To test one piece at a time: `ros2 launch nova_bot rplidar.launch.py lidar_port:=...` for the
+lidar, or the `serial_motor_demo` GUI (`ros2 run serial_motor_demo driver` / `gui`) for the
+motors, which talks to the same firmware.

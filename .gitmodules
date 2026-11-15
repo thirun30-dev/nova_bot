@@ -4,3 +4,7 @@
 [submodule "external/ros_arduino_bridge"]
 	path = external/ros_arduino_bridge
 	url = https://github.com/joshnewans/ros_arduino_bridge.git
+[submodule "external/diffdrive_arduino"]
+	path = external/diffdrive_arduino
+	url = https://github.com/joshnewans/diffdrive_arduino.git
+	branch = humble

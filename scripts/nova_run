@@ -1,18 +1,30 @@
 #!/usr/bin/env bash
-# nova_run: start the Nova simulation and open the web dashboard, in one command.
+# nova_run: start Nova (simulation or the real robot) and its web dashboard, in one command.
 #
-# The dashboard starts the stack itself (Gazebo + SLAM/AMCL + Nav2), so the website owns
+# The dashboard starts the stack itself (robot + SLAM/AMCL + Nav2), so the website owns
 # every process: stop, restart or switch mode from the "Robot Stack" page.
 # Ctrl-C here (or closing this terminal) stops everything.
 #
-#   nova_run                      map a new area: sim + SLAM + Nav2
-#   nova_run nav [MAP]            work on a saved map: sim + AMCL + Nav2 (default: newest map)
+#   nova_run                      map a new area: robot + SLAM + Nav2
+#   nova_run nav [MAP]            work on a saved map: robot + AMCL + Nav2 (default: newest map)
 #   nova_run web                  dashboard only; start things from the page
+#   nova_run encoders [--spin PWM]   real robot: read encoder counts / test motors (no ROS)
 #
-# Options:
+# Simulation options:
 #   --world FILE     Gazebo world in nova_bot/worlds (default obstacles.world)
 #   --headless       Gazebo without its GUI window
-#   --lan            reachable from other devices; uses $NOVA_TOKEN or a generated token
+# Real robot (run on the robot computer):
+#   --real           Arduino + RPLidar instead of Gazebo; implies --lan
+#   --arduino DEV    Arduino serial port   (default: auto-detect, else /dev/ttyUSB0)
+#   --lidar DEV      RPLidar serial port   (default: auto-detect, else /dev/ttyUSB1)
+#   --lidar-baud N   115200 A1/A2M8 (default), 256000 A2M12, 460800 C1
+#   --cpr N          encoder counts per wheel revolution (default 3436)
+#   --no-lidar       no lidar (drive only)
+#   --camera         also start a USB camera (v4l2)
+#   Defaults for these can live in ~/.config/nova/robot.env (NOVA_ARDUINO=..., see README).
+# Common:
+#   --lan            reachable from other devices, with a token (kept in ~/.config/nova/token)
+#   --local          real robot, but only reachable from the robot computer itself
 #   --port N         dashboard port (default 8080)
 #   --no-browser     do not open the dashboard window
 set -u
@@ -20,32 +32,77 @@ set -u
 PKG_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 WS_DIR="$(cd "$PKG_DIR/../.." && pwd)"
 MAP_DIR="$HOME/hiro_ws/maps"
+CONF_DIR="$HOME/.config/nova"
 ROS_DISTRO_NAME="${ROS_DISTRO:-jazzy}"
 
-usage() { sed -n '2,19p' "$(readlink -f "${BASH_SOURCE[0]}")" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,30p' "$(readlink -f "${BASH_SOURCE[0]}")" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
-mode=mapping map="" world="obstacles.world" headless=false lan=false port=8080 browser=true
-case "${1:-}" in
-    ""|-*) ;;
-    map|mapping|slam) mode=mapping; shift ;;
-    nav|navigation|localization)
-        mode=navigation; shift
-        if [ $# -gt 0 ] && [[ $1 != -* ]]; then map="${1%.yaml}"; shift; fi ;;
-    web|dashboard) mode=""; shift ;;
-    help) usage ;;
-    *) echo "nova_run: unknown mode '$1'" >&2; usage 1 ;;
-esac
-while [ $# -gt 0 ]; do
+# saved real-robot defaults (plain KEY=value lines)
+NOVA_ARDUINO="" NOVA_LIDAR="" NOVA_LIDAR_BAUD=115200 NOVA_CPR=3436 NOVA_CAMERA=false
+# shellcheck disable=SC1091
+[ -f "$CONF_DIR/robot.env" ] && . "$CONF_DIR/robot.env"
+
+mode=mapping map="" world="obstacles.world" headless=false lan="" port=8080 browser=true
+real=false arduino="$NOVA_ARDUINO" lidar_dev="$NOVA_LIDAR" lidar_baud="$NOVA_LIDAR_BAUD"
+cpr="$NOVA_CPR" lidar=true camera="$NOVA_CAMERA"
+enc_args=()
+while [ $# -gt 0 ]; do                      # the mode word may come before or after options
     case "$1" in
+        map|mapping|slam) mode=mapping; shift ;;
+        nav|navigation|localization)
+            mode=navigation; shift
+            if [ $# -gt 0 ] && [[ $1 != -* ]]; then map="${1%.yaml}"; shift; fi ;;
+        web|dashboard) mode=""; shift ;;
+        encoders) mode=encoders; shift ;;
+        help) usage ;;
         --world) world="$(basename "${2:?--world needs a file}")"; shift 2 ;;
         --headless) headless=true; shift ;;
+        --real) real=true; shift ;;
+        --arduino) arduino="${2:?--arduino needs a device}"; shift 2 ;;
+        --lidar) lidar_dev="${2:?--lidar needs a device}"; shift 2 ;;
+        --lidar-baud) lidar_baud="${2:?--lidar-baud needs a number}"; shift 2 ;;
+        --cpr) cpr="${2:?--cpr needs a number}"; shift 2 ;;
+        --no-lidar) lidar=false; shift ;;
+        --camera) camera=true; shift ;;
+        --spin) enc_args+=(--spin "${2:?--spin needs a PWM value}"); shift 2 ;;
         --lan) lan=true; shift ;;
+        --local) lan=false; shift ;;
         --port) port="${2:?--port needs a number}"; shift 2 ;;
         --no-browser) browser=false; shift ;;
         -h|--help) usage ;;
-        *) echo "nova_run: unknown option '$1'" >&2; usage 1 ;;
+        -*) echo "nova_run: unknown option '$1'" >&2; usage 1 ;;
+        *) echo "nova_run: unknown mode '$1' (map, nav [MAP], web, encoders)" >&2; exit 1 ;;
     esac
 done
+[ -n "$lan" ] || lan=$real                 # the real robot is normally used over Wi-Fi
+[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] || browser=false    # headless robot computer
+
+# ---- real robot: serial devices ----
+# Stable names from /dev/serial/by-id: the RPLidar has a Silicon Labs CP210x USB-serial chip;
+# the Arduino is the other one (CH340 clone, genuine Arduino, FTDI).
+by_id() { ls /dev/serial/by-id/ 2>/dev/null | grep -iE "$1" | grep -viE "${2:-^$}" | head -1 | sed 's|^|/dev/serial/by-id/|'; }
+find_devices() {
+    [ -n "$lidar_dev" ] || lidar_dev="$(by_id 'Silicon_Labs|CP210')"
+    [ -n "$arduino" ] || arduino="$(by_id '1a86|CH34|wch|Arduino|FTDI|FT232|usb-' 'Silicon_Labs|CP210')"
+    [ -n "$arduino" ] || arduino=/dev/ttyUSB0
+    [ -n "$lidar_dev" ] || lidar_dev=/dev/ttyUSB1
+}
+check_dev() {           # $1 label, $2 device
+    if [ ! -e "$2" ]; then
+        echo "nova_run: $1 not found at $2" >&2
+        echo "  serial devices: $(ls /dev/ttyUSB* /dev/ttyACM* /dev/serial/by-id/* 2>/dev/null | tr '\n' ' ')" >&2
+        exit 1
+    fi
+    if [ ! -r "$2" ] || [ ! -w "$2" ]; then
+        echo "nova_run: no permission for $2; run: sudo usermod -aG dialout \$USER  (then log in again)" >&2
+        exit 1
+    fi
+}
+
+if [ "$mode" = encoders ]; then
+    find_devices; check_dev Arduino "$arduino"
+    exec python3 "$PKG_DIR/scripts/nova_encoders.py" "$arduino" "${enc_args[@]}"
+fi
 
 # ---- environment ----
 if [ ! -f "/opt/ros/$ROS_DISTRO_NAME/setup.bash" ]; then
@@ -62,7 +119,20 @@ source "/opt/ros/$ROS_DISTRO_NAME/setup.bash"
 source "$WS_DIR/install/setup.bash"
 set -u
 
-if [ ! -f "$PKG_DIR/worlds/$world" ]; then
+if $real; then
+    find_devices
+    check_dev Arduino "$arduino"
+    $lidar && check_dev RPLidar "$lidar_dev"
+    if [ "$arduino" = "$lidar_dev" ] && $lidar; then
+        echo "nova_run: Arduino and RPLidar both resolve to $arduino; pass --arduino and --lidar" >&2; exit 1
+    fi
+    for pkg in diffdrive_arduino rplidar_ros; do
+        if [ $pkg = rplidar_ros ] && ! $lidar; then continue; fi
+        if ! ros2 pkg prefix $pkg >/dev/null 2>&1; then
+            echo "nova_run: ROS package '$pkg' is missing (see README, Real robot)" >&2; exit 1
+        fi
+    done
+elif [ ! -f "$PKG_DIR/worlds/$world" ]; then
     echo "nova_run: no world '$world' in $PKG_DIR/worlds" >&2; exit 1
 fi
 if [ "$mode" = navigation ]; then
@@ -80,15 +150,22 @@ fi
 host=127.0.0.1 token=""
 if $lan; then
     host=0.0.0.0
-    token="${NOVA_TOKEN:-$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')}"
+    token="${NOVA_TOKEN:-}"
+    if [ -z "$token" ]; then        # one token per machine, so bookmarks keep working
+        if [ ! -s "$CONF_DIR/token" ]; then
+            mkdir -p "$CONF_DIR"
+            (umask 077; head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$CONF_DIR/token")
+        fi
+        token="$(cat "$CONF_DIR/token")"
+    fi
 fi
 url="http://localhost:$port/${token:+?token=$token}"
 
 # ---- already running? just open it ----
 if curl -s -o /dev/null -m 1 "http://127.0.0.1:$port/"; then
-    echo "Nova dashboard is already running on port $port; opening it."
+    echo "Nova dashboard is already running on port $port${token:+: $url}"
     echo "(Stop it with Ctrl-C in its terminal, or use another --port.)"
-    $browser && xdg-open "http://localhost:$port/" >/dev/null 2>&1 &
+    $browser && xdg-open "$url" >/dev/null 2>&1 &
     exit 0
 fi
 
@@ -106,18 +183,31 @@ open_when_up() {
     done
 }
 
-echo "==> Nova: ${mode:-dashboard only}${map:+ on map '$map'} · world $world$($headless && echo ' · headless')"
+if $real; then
+    what="real robot · Arduino $arduino"
+    $lidar && what="$what · RPLidar $lidar_dev @ $lidar_baud" || what="$what · no lidar"
+    $camera && what="$what · camera"
+else
+    what="simulation · world $world$($headless && echo ' · headless')"
+fi
+echo "==> Nova: ${mode:-dashboard only}${map:+ on map '$map'} · $what"
 echo "    Dashboard: $url"
 if $lan; then
     ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
-    echo "    On the LAN: http://${ip:-<robot-ip>}:$port/?token=$token"
+    echo "    From other devices: http://${ip:-<robot-ip>}:$port/?token=$token"
 fi
 echo "    Ctrl-C stops everything."
 $browser && open_when_up &
 
 # ros2 launch rejects empty values ("token:="), so optional ones are added only when set
-args=(robot:=sim use_sim_time:=true host:="$host" port:="$port"
-      world:="$world" map_dir:="$MAP_DIR" headless:="$headless")
+args=(host:="$host" port:="$port" map_dir:="$MAP_DIR")
+if $real; then
+    robot_args="serial_port:=$arduino enc_counts_per_rev:=$cpr lidar:=$lidar camera:=$camera"
+    $lidar && robot_args="$robot_args lidar_port:=$lidar_dev lidar_baud:=$lidar_baud"
+    args+=(robot:=real use_sim_time:=false robot_args:="$robot_args")
+else
+    args+=(robot:=sim use_sim_time:=true world:="$world" headless:="$headless")
+fi
 [ -n "$token" ] && args+=(token:="$token")
 [ -n "$mode" ] && args+=(autostart:="$mode")
 [ -n "$map" ] && args+=(map:="$map")
@@ -137,7 +227,7 @@ stop() {
     $stopping && return
     stopping=true
     k="$(pgrep -P "$lp" | tr '\n' ' ')"; [ -n "$k" ] && kids="$k"
-    echo; echo "==> Stopping Nova (Gazebo can take ~15 s)..."
+    echo; echo "==> Stopping Nova (can take ~15 s)..."
     kill -INT "$lp" 2>/dev/null
 }
 trap stop INT TERM HUP

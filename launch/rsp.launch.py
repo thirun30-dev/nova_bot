@@ -20,7 +20,11 @@ def generate_launch_description():
     pkg_path = os.path.join(get_package_share_directory('nova_bot'))
     xacro_file = os.path.join(pkg_path,'description','robot.urdf.xacro')
     # robot_description_config = xacro.process_file(xacro_file).toxml()
-    robot_description_config = Command(['xacro ', xacro_file, ' use_ros2_control:=', use_ros2_control, ' sim_mode:=', use_sim_time])
+    robot_description_config = Command([
+        'xacro ', xacro_file, ' use_ros2_control:=', use_ros2_control, ' sim_mode:=', use_sim_time,
+        ' serial_port:=', LaunchConfiguration('serial_port'),
+        ' baud_rate:=', LaunchConfiguration('baud_rate'),
+        ' enc_counts_per_rev:=', LaunchConfiguration('enc_counts_per_rev')])
     
     # Create a robot_state_publisher node
     params = {'robot_description': robot_description_config, 'use_sim_time': use_sim_time}
@@ -42,6 +46,12 @@ def generate_launch_description():
             'use_ros2_control',
             default_value='true',
             description='Use ros2_control if true'),
+        DeclareLaunchArgument('serial_port', default_value='/dev/ttyUSB0',
+                              description='Real robot: Arduino serial port'),
+        DeclareLaunchArgument('baud_rate', default_value='57600',
+                              description='Real robot: Arduino baud rate (firmware BAUDRATE)'),
+        DeclareLaunchArgument('enc_counts_per_rev', default_value='3436',
+                              description='Real robot: encoder counts per wheel revolution'),
 
         node_robot_state_publisher
     ])

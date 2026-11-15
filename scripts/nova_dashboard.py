@@ -108,6 +108,8 @@ READY_LINE = {'robot': 'Configured and activated diff_cont',
               'localization': 'Managed nodes are active',
               'navigation': 'Managed nodes are active'}
 EXCLUSIVE = {'slam': 'localization', 'localization': 'slam'}
+ROBOT_ARG = re.compile(r'^(serial_port|baud_rate|enc_counts_per_rev|lidar|lidar_port|lidar_baud|'
+                       r'lidar_scan_mode|camera|joystick):=[A-Za-z0-9_./:+-]*$')
 DEPENDENTS = {'robot': ['navigation', 'slam', 'localization']}   # stopped before the robot
 PRESETS = {'mapping': ['robot', 'slam', 'navigation'],
            'navigation': ['robot', 'localization', 'navigation']}
@@ -245,7 +247,11 @@ class Stack:
                                 'headless:=' + headless],
                         f'Gazebo sim · {world}' + (' · headless' if o.get('headless') else ''))
             if self.kind == 'real':
-                return base + ['launch_robot.launch.py'], 'real hardware'
+                extra = self.robot_args()
+                ports = [a.split(':=', 1)[1] for a in extra
+                         if a.startswith(('serial_port:=', 'lidar_port:='))]
+                return (base + ['launch_robot.launch.py'] + extra,
+                        'real hardware' + (' · ' + ', '.join(ports) if ports else ''))
             raise ValueError('robot base is brought up outside the dashboard (robot_launch:=none)')
         if name == 'slam':
             return base + ['slam.launch.py', 'use_sim_time:=' + sim], 'slam_toolbox, online async'
@@ -259,6 +265,17 @@ class Stack:
         if name == 'navigation':
             return base + ['navigation.launch.py', 'use_sim_time:=' + sim], 'Nav2'
         raise ValueError(f'unknown service {name!r}')
+
+    def robot_args(self):
+        """robot_args parameter ('serial_port:=/dev/ttyUSB0 lidar:=true ...'), limited to
+        launch_robot.launch.py's own arguments and plain values."""
+        out = []
+        for a in self.node.get_parameter('robot_args').value.split():
+            m = ROBOT_ARG.match(a)
+            if not m:
+                raise ValueError(f'bad robot_args entry {a!r}')
+            out.append(a)
+        return out
 
     @staticmethod
     def start_pose(o):
@@ -494,6 +511,8 @@ class Dashboard(Node):
         self.declare_parameter('stack_control', True)
         self.declare_parameter('robot_launch', 'sim')        # sim | real | none
         self.declare_parameter('default_world', 'obstacles.world')
+        # robot_launch:=real only: extra launch_robot.launch.py arguments (nova_run --real)
+        self.declare_parameter('robot_args', '')
         # Start a preset as soon as the dashboard is up (used by `nova_run`). The page owns
         # those launches, so it can stop / restart / switch them like any started from it.
         self.declare_parameter('autostart', '')              # '' | mapping | navigation

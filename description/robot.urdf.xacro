@@ -3,6 +3,10 @@
 
     <xacro:arg name="use_ros2_control" default="true"/>
     <xacro:arg name="sim_mode" default="false"/>
+    <!-- real robot (diffdrive_arduino talking to the NovaArduinoBridge firmware) -->
+    <xacro:arg name="serial_port" default="/dev/ttyUSB0"/>
+    <xacro:arg name="baud_rate" default="57600"/>
+    <xacro:arg name="enc_counts_per_rev" default="3436"/>
 
     <xacro:include filename="robot_core.xacro" />
 

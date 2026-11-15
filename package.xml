@@ -34,6 +34,14 @@
   <exec_depend>teleop_twist_keyboard</exec_depend>
 
   <!-- Mapping and navigation -->
+  <!-- real robot: RPLidar, USB camera, Arduino serial tool (nova_encoders.py);
+       diffdrive_arduino is built from source (external/, linked into src/) -->
+  <exec_depend>diffdrive_arduino</exec_depend>
+  <exec_depend>rplidar_ros</exec_depend>
+  <exec_depend>v4l2_camera</exec_depend>
+  <exec_depend>compressed_image_transport</exec_depend>
+  <exec_depend>python3-serial</exec_depend>
+
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>navigation2</exec_depend>
   <exec_depend>nav2_bringup</exec_depend>
