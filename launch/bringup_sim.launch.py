@@ -94,7 +94,7 @@ def generate_launch_description():
             'mode', default_value='slam',
             description="'slam' (build a map while driving) or 'localization' (AMCL on a saved map)"),
         DeclareLaunchArgument(
-            'map', default_value=os.path.expanduser('~/hiro_ws/maps/my_map.yaml'),
+            'map', default_value=os.path.expanduser('~/nova_ws/maps/my_map.yaml'),
             description='Saved map, used when mode:=localization'),
         DeclareLaunchArgument('nav', default_value='true', description='Start Nav2'),
         DeclareLaunchArgument('x', default_value='0.0', description='AMCL initial x (localization)'),

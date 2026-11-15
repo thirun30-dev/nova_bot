@@ -29,7 +29,7 @@ def generate_launch_description():
                               description='Access token (required when host is not localhost)'),
         DeclareLaunchArgument('world', default_value='obstacles.world',
                               description='Default Gazebo world in nova_bot/worlds'),
-        DeclareLaunchArgument('map_dir', default_value=os.path.expanduser('~/hiro_ws/maps'),
+        DeclareLaunchArgument('map_dir', default_value=os.path.expanduser('~/nova_ws/maps'),
                               description='Where maps (and stations.yaml) are saved and loaded'),
         DeclareLaunchArgument('robot_args', default_value=' ',
                               description="robot:=real only: extra launch_robot.launch.py "

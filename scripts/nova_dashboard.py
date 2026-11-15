@@ -506,7 +506,7 @@ class Dashboard(Node):
         self.declare_parameter('stations_file',
                                os.path.join(share, 'config', 'warehouse_stations.yaml'))
         self.declare_parameter('web_dir', os.path.join(share, 'web'))
-        self.declare_parameter('map_dir', os.path.expanduser('~/hiro_ws/maps'))
+        self.declare_parameter('map_dir', os.path.expanduser('~/nova_ws/maps'))
         # robot stack control from the page
         self.declare_parameter('stack_control', True)
         self.declare_parameter('robot_launch', 'sim')        # sim | real | none

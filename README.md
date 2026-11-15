@@ -24,10 +24,10 @@ see [Real robot](#real-robot).
 ## Setup (Ubuntu 24.04)
 
 Copy the whole workspace folder (the one containing `src/nova_bot`) to the Ubuntu
-machine, e.g. as `~/hiro_ws`, then:
+machine, e.g. as `~/nova_ws`, then:
 
 ```bash
-cd ~/hiro_ws
+cd ~/nova_ws
 bash src/nova_bot/scripts/setup_ubuntu.sh
 ```
 
@@ -38,7 +38,7 @@ In every new terminal:
 
 ```bash
 source /opt/ros/jazzy/setup.bash
-source ~/hiro_ws/install/setup.bash
+source ~/nova_ws/install/setup.bash
 ```
 
 ## Quick start: `nova_run`
@@ -49,7 +49,7 @@ from the website.
 ```bash
 nova_run                     # map a new area: Gazebo + SLAM + Nav2, dashboard window opens
 nova_run nav                 # work on the newest saved map: Gazebo + AMCL + Nav2
-nova_run nav my_map          # ... on a specific map in ~/hiro_ws/maps
+nova_run nav my_map          # ... on a specific map in ~/nova_ws/maps
 nova_run web                 # dashboard only; start the stack from the page
 ```
 
@@ -68,14 +68,14 @@ stops everything (Gazebo takes about 15 s). If the dashboard is already running,
 just opens it.
 
 `nova_run` lives in `scripts/` and is linked into `~/.local/bin` by `setup_ubuntu.sh`
-(`ln -sf ~/hiro_ws/src/nova_bot/scripts/nova_run ~/.local/bin/nova_run` by hand).
+(`ln -sf ~/nova_ws/src/nova_bot/scripts/nova_run ~/.local/bin/nova_run` by hand).
 
 ## The whole bot from a launch file
 
 ```bash
 ros2 launch nova_bot bringup_sim.launch.py                      # Gazebo + SLAM + Nav2 + RViz
 ros2 launch nova_bot bringup_sim.launch.py mode:=localization \
-    map:=$HOME/hiro_ws/maps/my_map_v2.yaml                      # AMCL on a saved map
+    map:=$HOME/nova_ws/maps/my_map_v2.yaml                      # AMCL on a saved map
 ```
 
 Arguments: `world`, `mode` (`slam` | `localization`), `map`, `nav`, `rviz`, and `x`/`y`/`yaw`
@@ -118,8 +118,8 @@ the dashboard, and the stack it launched shows as "running (external)".
 
 The robot stack only runs the package's own launch files (`launch_sim`/`launch_robot`, `slam`,
 `localization`, `navigation`), never arbitrary commands. Launches started from the page stop when
-the dashboard exits. Maps are saved to `~/hiro_ws/maps`; stations edited on the page go to
-`~/hiro_ws/maps/stations.yaml` (the package's `config/warehouse_stations.yaml` stays as the default).
+the dashboard exits. Maps are saved to `~/nova_ws/maps`; stations edited on the page go to
+`~/nova_ws/maps/stations.yaml` (the package's `config/warehouse_stations.yaml` stays as the default).
 
 Launch arguments: `robot:=sim|real|none`, `use_sim_time`, `host` (`0.0.0.0` exposes it on the LAN),
 `port`, `token`, `world`, `map_dir`, and `autostart:=mapping|navigation` (with `map:=<saved map>`
@@ -131,10 +131,10 @@ something publishes `/battery_state`. `robot:=real` uses `launch_robot.launch.py
 ### Changing the UI
 
 ```bash
-cd ~/hiro_ws/src/nova_bot/webapp
+cd ~/nova_ws/src/nova_bot/webapp
 npm install                     # once
 npm run build                   # next build + copy the export into ../web
-cd ~/hiro_ws && colcon build --symlink-install --packages-select nova_bot   # install new files
+cd ~/nova_ws && colcon build --symlink-install --packages-select nova_bot   # install new files
 ```
 
 Live development with hot reload, against a running dashboard:
@@ -151,7 +151,7 @@ The previous single-file UI is kept in `web_classic/index.html` (not installed).
 ## 1. Drive in simulation
 
 ```bash
-ros2 launch nova_bot launch_sim.launch.py world:=$HOME/hiro_ws/src/nova_bot/worlds/obstacles.world
+ros2 launch nova_bot launch_sim.launch.py world:=$HOME/nova_ws/src/nova_bot/worlds/obstacles.world
 ```
 
 Second terminal — keyboard teleop:
@@ -185,14 +185,14 @@ With the simulation running:
 
 ```bash
 ros2 launch nova_bot slam.launch.py
-rviz2 -d $HOME/hiro_ws/src/nova_bot/config/map.rviz
+rviz2 -d $HOME/nova_ws/src/nova_bot/config/map.rviz
 ```
 
 Drive around until the map is complete, then save it:
 
 ```bash
-mkdir -p ~/hiro_ws/maps
-ros2 run nav2_map_server map_saver_cli -f ~/hiro_ws/maps/my_map
+mkdir -p ~/nova_ws/maps
+ros2 run nav2_map_server map_saver_cli -f ~/nova_ws/maps/my_map
 ```
 
 ## 3. Navigate
@@ -206,7 +206,7 @@ ros2 launch nova_bot navigation.launch.py
 Or on a saved map (stop `slam.launch.py` first):
 
 ```bash
-ros2 launch nova_bot localization.launch.py map:=$HOME/hiro_ws/maps/my_map.yaml
+ros2 launch nova_bot localization.launch.py map:=$HOME/nova_ws/maps/my_map.yaml
 ros2 launch nova_bot navigation.launch.py
 ```
 
@@ -266,8 +266,8 @@ Motor A (AO1/AO2) is the left wheel, motor B (BO1/BO2) the right. Open
 ### 2. Install on the Pi (Ubuntu 24.04 Server)
 
 ```bash
-git clone --recurse-submodules git@github.com:thirun30-dev/nova_bot.git ~/hiro_ws/src/nova_bot
-bash ~/hiro_ws/src/nova_bot/scripts/setup_ubuntu.sh --robot    # ROS base, drivers, build, nova_run
+git clone --recurse-submodules git@github.com:thirun30-dev/nova_bot.git ~/nova_ws/src/nova_bot
+bash ~/nova_ws/src/nova_bot/scripts/setup_ubuntu.sh --robot    # ROS base, drivers, build, nova_run
 ```
 
 `--robot` skips Gazebo and RViz and adds you to the `dialout` group (log in again once).

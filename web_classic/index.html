@@ -537,7 +537,7 @@ select { font: inherit; color: var(--text); background: var(--bg); border: 1px s
   $('follow').onclick = () => { view.follow = !view.follow; $('follow').classList.toggle('active', view.follow); draw(); };
   ['l-scan', 'l-plan', 'l-stations', 'l-grid'].forEach(id => $(id).onchange = draw);
   $('save-map').onclick = async () => {
-    const name = prompt('Map name (saved under ~/hiro_ws/maps):', 'warehouse_map');
+    const name = prompt('Map name (saved under ~/nova_ws/maps):', 'warehouse_map');
     if (name) { const r = await post('save_map', { name }); if (r.ok) { toast('Saving map…'); pref('map', name.replace(/[^A-Za-z0-9_-]/g, '') || 'warehouse_map'); } }
   };
 

@@ -31,7 +31,7 @@ set -u
 
 PKG_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 WS_DIR="$(cd "$PKG_DIR/../.." && pwd)"
-MAP_DIR="$HOME/hiro_ws/maps"
+MAP_DIR="$HOME/nova_ws/maps"
 CONF_DIR="$HOME/.config/nova"
 ROS_DISTRO_NAME="${ROS_DISTRO:-jazzy}"
 

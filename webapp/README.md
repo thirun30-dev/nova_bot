@@ -5,7 +5,7 @@ The browser UI for the Nova AMR. `npm run build` exports static files into `../w
 
 ```bash
 npm install
-npm run build        # then: cd ~/hiro_ws && colcon build --symlink-install --packages-select nova_bot
+npm run build        # then: cd ~/nova_ws && colcon build --symlink-install --packages-select nova_bot
 ```
 
 Development with hot reload: start the dashboard with `-p cors_origin:=http://localhost:3000`, then
