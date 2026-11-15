@@ -47,12 +47,18 @@ rosdep install --from-paths src --ignore-src -r -y
 echo "==> Building workspace at $WS_DIR"
 colcon build --symlink-install
 
+echo "==> Installing the nova_run command into ~/.local/bin"
+mkdir -p "$HOME/.local/bin"
+ln -sf "$PKG_DIR/scripts/nova_run" "$HOME/.local/bin/nova_run"
+
 cat <<EOF
 
 Done. In every new terminal run:
     source /opt/ros/$ROS_DISTRO_NAME/setup.bash
     source $WS_DIR/install/setup.bash
 
-Then start the simulation:
-    ros2 launch nova_bot launch_sim.launch.py world:=$PKG_DIR/worlds/obstacles.world
+Then start the simulation and open the web dashboard with one command:
+    nova_run                 # map a new area   (nova_run --help for all options)
+    nova_run nav             # work on the newest saved map
+(If 'nova_run' is not found, open a new terminal: ~/.local/bin joins PATH at login.)
 EOF

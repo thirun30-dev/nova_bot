@@ -365,7 +365,8 @@ class Stack:
             self._stop(dep, grace)
         p = self.procs.get(name)
         if p is None or (not p.alive and not p._group_alive()):
-            if self.up(name) and name not in DEPENDENTS:
+            # p set = we launched it and it already ended; its node may linger in the graph
+            if p is None and self.up(name) and name not in DEPENDENTS:
                 self.node.event('warn', f'{SERVICES[name][0]} was not started here; '
                                         'stop it where it was launched')
             return
@@ -396,16 +397,33 @@ class Stack:
         self.node.event('error', f'{SERVICES[name][0]} did not come up within {timeout:.0f} s')
         return False
 
+    def _start_ready(self, preset, name, cmd, desc, pose):
+        """Start one preset step and wait for it. Nav2's lifecycle bringup occasionally
+        stalls right after Gazebo starts, so a step that does not come up gets one restart."""
+        label = SERVICES[name][0]
+        for attempt in (1, 2):
+            self.busy = f'{preset}: waiting for {label}'
+            if not self._start(name, cmd, desc, pose):
+                return False
+            if self._wait_ready(name, timeout=120.0 if name == 'robot' or attempt == 2 else 45.0):
+                return True
+            if attempt == 2 or self.abort.is_set() or self.closed:
+                return False
+            self.node.event('warn', f'Restarting {label} (attempt 2 of 2)')
+            self._stop(name)
+            # its node can linger in the graph; _start would take it for an external one
+            end = time.time() + 20.0
+            while self.up(name) and time.time() < end and not self.abort.is_set():
+                time.sleep(0.5)
+        return False
+
     def _preset(self, preset, steps, pose):
         self.node.event('info', f'Preset "{preset}": ' + ' → '.join(SERVICES[n][0] for n, _, _ in steps))
         for name, cmd, desc in steps:
             if self.abort.is_set():
                 break
-            self.busy = f'{preset}: waiting for {SERVICES[name][0]}'
-            if not self._start(name, cmd, desc, pose if name == 'localization' else None):
-                break
-            self.busy = f'{preset}: waiting for {SERVICES[name][0]}'
-            if not self._wait_ready(name):
+            if not self._start_ready(preset, name, cmd, desc,
+                                     pose if name == 'localization' else None):
                 break
         else:
             self.node.event('info', f'Preset "{preset}" ready')
@@ -476,6 +494,11 @@ class Dashboard(Node):
         self.declare_parameter('stack_control', True)
         self.declare_parameter('robot_launch', 'sim')        # sim | real | none
         self.declare_parameter('default_world', 'obstacles.world')
+        # Start a preset as soon as the dashboard is up (used by `nova_run`). The page owns
+        # those launches, so it can stop / restart / switch them like any started from it.
+        self.declare_parameter('autostart', '')              # '' | mapping | navigation
+        self.declare_parameter('autostart_map', '')          # saved map name for navigation
+        self.declare_parameter('autostart_headless', False)  # Gazebo without its GUI
         # Allowed browser origin for the API when the UI is served elsewhere, e.g. the
         # Next.js dev server (http://localhost:3000). Empty = same origin only.
         self.declare_parameter('cors_origin', '')
@@ -543,6 +566,22 @@ class Dashboard(Node):
         self.create_timer(2.0, self.poll_graph, clock=steady)
         self.stack = Stack(self)
         self.event('info', 'Dashboard node started')
+        self.autostart()
+
+    def autostart(self):
+        preset = self.get_parameter('autostart').value.strip()
+        if not preset:
+            return
+        o = {'world': self.get_parameter('default_world').value,
+             'headless': self.get_parameter('autostart_headless').value}
+        if preset == 'navigation':
+            # the sim spawns the robot at the origin, so AMCL can start from there
+            o.update(map=self.get_parameter('autostart_map').value, x=0.0, y=0.0, yaw=0.0)
+        try:
+            _, msg = self.stack.request_preset(preset, o)
+            self.event('info', f'Autostart: {msg}')
+        except ValueError as e:
+            self.event('error', f'Autostart "{preset}" failed: {e}')
 
     # ---------------- events ----------------
     def event(self, level, text):

@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+# nova_run: start the Nova simulation and open the web dashboard, in one command.
+#
+# The dashboard starts the stack itself (Gazebo + SLAM/AMCL + Nav2), so the website owns
+# every process: stop, restart or switch mode from the "Robot Stack" page.
+# Ctrl-C here (or closing this terminal) stops everything.
+#
+#   nova_run                      map a new area: sim + SLAM + Nav2
+#   nova_run nav [MAP]            work on a saved map: sim + AMCL + Nav2 (default: newest map)
+#   nova_run web                  dashboard only; start things from the page
+#
+# Options:
+#   --world FILE     Gazebo world in nova_bot/worlds (default obstacles.world)
+#   --headless       Gazebo without its GUI window
+#   --lan            reachable from other devices; uses $NOVA_TOKEN or a generated token
+#   --port N         dashboard port (default 8080)
+#   --no-browser     do not open the dashboard window
+set -u
+
+PKG_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+WS_DIR="$(cd "$PKG_DIR/../.." && pwd)"
+MAP_DIR="$HOME/hiro_ws/maps"
+ROS_DISTRO_NAME="${ROS_DISTRO:-jazzy}"
+
+usage() { sed -n '2,19p' "$(readlink -f "${BASH_SOURCE[0]}")" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+mode=mapping map="" world="obstacles.world" headless=false lan=false port=8080 browser=true
+case "${1:-}" in
+    ""|-*) ;;
+    map|mapping|slam) mode=mapping; shift ;;
+    nav|navigation|localization)
+        mode=navigation; shift
+        if [ $# -gt 0 ] && [[ $1 != -* ]]; then map="${1%.yaml}"; shift; fi ;;
+    web|dashboard) mode=""; shift ;;
+    help) usage ;;
+    *) echo "nova_run: unknown mode '$1'" >&2; usage 1 ;;
+esac
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --world) world="$(basename "${2:?--world needs a file}")"; shift 2 ;;
+        --headless) headless=true; shift ;;
+        --lan) lan=true; shift ;;
+        --port) port="${2:?--port needs a number}"; shift 2 ;;
+        --no-browser) browser=false; shift ;;
+        -h|--help) usage ;;
+        *) echo "nova_run: unknown option '$1'" >&2; usage 1 ;;
+    esac
+done
+
+# ---- environment ----
+if [ ! -f "/opt/ros/$ROS_DISTRO_NAME/setup.bash" ]; then
+    echo "nova_run: ROS 2 $ROS_DISTRO_NAME not found in /opt/ros" >&2; exit 1
+fi
+if [ ! -f "$WS_DIR/install/setup.bash" ]; then
+    echo "nova_run: workspace not built; run: cd $WS_DIR && colcon build --symlink-install" >&2
+    exit 1
+fi
+set +u      # the ROS setup scripts read unset variables
+# shellcheck disable=SC1090
+source "/opt/ros/$ROS_DISTRO_NAME/setup.bash"
+# shellcheck disable=SC1091
+source "$WS_DIR/install/setup.bash"
+set -u
+
+if [ ! -f "$PKG_DIR/worlds/$world" ]; then
+    echo "nova_run: no world '$world' in $PKG_DIR/worlds" >&2; exit 1
+fi
+if [ "$mode" = navigation ]; then
+    if [ -z "$map" ]; then
+        newest="$(ls -t "$MAP_DIR"/*.yaml 2>/dev/null | grep -v '/stations\.yaml$' | head -1)"
+        map="$(basename "${newest%.yaml}")"
+    fi
+    if [ -z "$map" ] || [ ! -f "$MAP_DIR/$map.yaml" ]; then
+        echo "nova_run: no saved map '${map:-<none>}' in $MAP_DIR" >&2
+        echo "  saved maps: $(cd "$MAP_DIR" 2>/dev/null && ls *.yaml 2>/dev/null | grep -v '^stations' | sed 's/\.yaml$//' | tr '\n' ' ')" >&2
+        exit 1
+    fi
+fi
+
+host=127.0.0.1 token=""
+if $lan; then
+    host=0.0.0.0
+    token="${NOVA_TOKEN:-$(head -c 12 /dev/urandom | od -An -tx1 | tr -d ' \n')}"
+fi
+url="http://localhost:$port/${token:+?token=$token}"
+
+# ---- already running? just open it ----
+if curl -s -o /dev/null -m 1 "http://127.0.0.1:$port/"; then
+    echo "Nova dashboard is already running on port $port; opening it."
+    echo "(Stop it with Ctrl-C in its terminal, or use another --port.)"
+    $browser && xdg-open "http://localhost:$port/" >/dev/null 2>&1 &
+    exit 0
+fi
+
+open_when_up() {
+    for _ in $(seq 1 60); do
+        if curl -s -o /dev/null -m 1 "http://127.0.0.1:$port/"; then
+            if command -v google-chrome >/dev/null; then
+                setsid google-chrome --app="$url" --new-window --window-size=1400,900 >/dev/null 2>&1 &
+            else
+                xdg-open "$url" >/dev/null 2>&1 &
+            fi
+            return
+        fi
+        sleep 0.5
+    done
+}
+
+echo "==> Nova: ${mode:-dashboard only}${map:+ on map '$map'} · world $world$($headless && echo ' · headless')"
+echo "    Dashboard: $url"
+if $lan; then
+    ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    echo "    On the LAN: http://${ip:-<robot-ip>}:$port/?token=$token"
+fi
+echo "    Ctrl-C stops everything."
+$browser && open_when_up &
+
+# ros2 launch rejects empty values ("token:="), so optional ones are added only when set
+args=(robot:=sim use_sim_time:=true host:="$host" port:="$port"
+      world:="$world" map_dir:="$MAP_DIR" headless:="$headless")
+[ -n "$token" ] && args+=(token:="$token")
+[ -n "$mode" ] && args+=(autostart:="$mode")
+[ -n "$map" ] && args+=(map:="$map")
+
+# Supervise the launch instead of exec-ing it: ros2 launch handles SIGINT but not SIGHUP
+# (terminal closed), which would leave the dashboard and Gazebo running. `set -m` gives the
+# launch its own process group and keeps SIGINT deliverable to it (background jobs of a
+# script otherwise start with SIGINT ignored); every way of stopping us becomes one SIGINT.
+# --noninteractive: on SIGINT, an interactive launch assumes the terminal already delivered
+# Ctrl-C to its children and does not forward it; in its own group they never got it.
+set -m
+ros2 launch --noninteractive nova_bot web_control.launch.py "${args[@]}" &
+lp=$!
+kids=""
+stopping=false
+stop() {
+    $stopping && return
+    stopping=true
+    k="$(pgrep -P "$lp" | tr '\n' ' ')"; [ -n "$k" ] && kids="$k"
+    echo; echo "==> Stopping Nova (Gazebo can take ~15 s)..."
+    kill -INT "$lp" 2>/dev/null
+}
+trap stop INT TERM HUP
+while kill -0 "$lp" 2>/dev/null; do
+    $stopping || { k="$(pgrep -P "$lp" | tr '\n' ' ')"; [ -n "$k" ] && kids="$k"; }
+    sleep 1 & wait $! 2>/dev/null     # interruptible, so traps run right away
+done
+# anything the launch left behind (e.g. it was killed hard) gets the same clean stop
+for k in $kids; do kill -INT "$k" 2>/dev/null; done
+for _ in $(seq 1 40); do
+    alive=""; for k in $kids; do kill -0 "$k" 2>/dev/null && alive="$alive $k"; done
+    [ -z "$alive" ] && break; sleep 0.5
+done
+for k in ${alive:-}; do kill -TERM "$k" 2>/dev/null; done
+echo "==> Nova stopped."

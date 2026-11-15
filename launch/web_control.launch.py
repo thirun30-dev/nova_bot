@@ -31,6 +31,13 @@ def generate_launch_description():
                               description='Default Gazebo world in nova_bot/worlds'),
         DeclareLaunchArgument('map_dir', default_value=os.path.expanduser('~/hiro_ws/maps'),
                               description='Where maps (and stations.yaml) are saved and loaded'),
+        DeclareLaunchArgument('autostart', default_value='',
+                              description="Preset to start right away: '' (none), 'mapping' "
+                                          "(robot + SLAM + Nav2) or 'navigation' (robot + AMCL + Nav2)"),
+        DeclareLaunchArgument('map', default_value='',
+                              description="Saved map name in map_dir for autostart:=navigation"),
+        DeclareLaunchArgument('headless', default_value='false',
+                              description='Autostart Gazebo without its GUI'),
         Node(
             package='nova_bot',
             executable='nova_dashboard.py',
@@ -42,6 +49,9 @@ def generate_launch_description():
                 'robot_launch': arg('robot'),
                 'default_world': arg('world'),
                 'map_dir': arg('map_dir'),
+                'autostart': ParameterValue(arg('autostart'), value_type=str),
+                'autostart_map': ParameterValue(arg('map'), value_type=str),
+                'autostart_headless': ParameterValue(arg('headless'), value_type=bool),
             }],
             output='screen',
             # on Ctrl-C the dashboard first stops the launches it started (Gazebo can take ~15 s)

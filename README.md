@@ -38,7 +38,36 @@ source /opt/ros/jazzy/setup.bash
 source ~/hiro_ws/install/setup.bash
 ```
 
-## Quick start: the whole bot in one command
+## Quick start: `nova_run`
+
+One command starts the simulation and opens the web dashboard; everything else is done
+from the website.
+
+```bash
+nova_run                     # map a new area: Gazebo + SLAM + Nav2, dashboard window opens
+nova_run nav                 # work on the newest saved map: Gazebo + AMCL + Nav2
+nova_run nav my_map          # ... on a specific map in ~/hiro_ws/maps
+nova_run web                 # dashboard only; start the stack from the page
+```
+
+| Option | |
+| --- | --- |
+| `--world FILE` | Gazebo world in `worlds/` (default `obstacles.world`) |
+| `--headless` | Gazebo without its GUI window |
+| `--lan` | reachable from phones/laptops on the network; prints `http://<ip>:8080/?token=…` (token from `$NOVA_TOKEN`, or generated) |
+| `--port N` | dashboard port (default 8080) |
+| `--no-browser` | don't open the dashboard window |
+
+The dashboard starts the stack itself, so the website owns every process: stop, restart, or
+switch between mapping and a saved map from **Robot Stack**, and drive, navigate, save maps
+and run missions from the other pages. **Ctrl-C** in the `nova_run` terminal, or closing it,
+stops everything (Gazebo takes about 15 s). If the dashboard is already running, `nova_run`
+just opens it.
+
+`nova_run` lives in `scripts/` and is linked into `~/.local/bin` by `setup_ubuntu.sh`
+(`ln -sf ~/hiro_ws/src/nova_bot/scripts/nova_run ~/.local/bin/nova_run` by hand).
+
+## The whole bot from a launch file
 
 ```bash
 ros2 launch nova_bot bringup_sim.launch.py                      # Gazebo + SLAM + Nav2 + RViz
@@ -90,7 +119,8 @@ the dashboard exits. Maps are saved to `~/hiro_ws/maps`; stations edited on the 
 `~/hiro_ws/maps/stations.yaml` (the package's `config/warehouse_stations.yaml` stays as the default).
 
 Launch arguments: `robot:=sim|real|none`, `use_sim_time`, `host` (`0.0.0.0` exposes it on the LAN),
-`port`, `token`, `world`, `map_dir`. On the LAN, always set a token and open
+`port`, `token`, `world`, `map_dir`, and `autostart:=mapping|navigation` (with `map:=<saved map>`
+and `headless:=true`) to start a preset as soon as the dashboard is up, as `nova_run` does. On the LAN, always set a token and open
 `http://<robot-ip>:8080/?token=<secret>`; there are no user accounts. Battery shows "n/a" until
 something publishes `/battery_state`. `robot:=real` uses `launch_robot.launch.py`, which is still a
 placeholder (see [Real robot](#real-robot-not-done-yet)).
