@@ -19,7 +19,7 @@ def generate_launch_description():
         DeclareLaunchArgument('lidar_scan_mode', default_value=''),
         Node(
             package='rplidar_ros',
-            executable='rplidar_node',
+            executable='rplidar_composition',
             name='rplidar_node',
             output='screen',
             parameters=[{
