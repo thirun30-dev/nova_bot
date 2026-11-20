@@ -15,6 +15,14 @@ def generate_launch_description():
             package='joy',
             executable='joy_node',
             parameters=[joy_params, {'use_sim_time': use_sim_time}],
+            remappings=[('/joy', '/joy_raw')],
+         )
+
+    # zeroes axes that have not moved yet (some pads report 1.0 = full stick until touched)
+    joy_guard = Node(
+            package='nova_bot',
+            executable='joy_guard.py',
+            parameters=[{'use_sim_time': use_sim_time}],
          )
 
     teleop_node = Node(
@@ -31,5 +39,6 @@ def generate_launch_description():
             default_value='false',
             description='Use sim time if true'),
         joy_node,
+        joy_guard,
         teleop_node,
     ])

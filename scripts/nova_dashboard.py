@@ -553,8 +553,11 @@ class Dashboard(Node):
             with open(os.path.join(share, 'config', 'joystick.yaml')) as f:
                 tp = yaml.safe_load(f)['teleop_node']['ros__parameters']
             self.joy_buttons = (int(tp.get('enable_button', -1)), int(tp.get('enable_turbo_button', -1)))
+            yaw_scale = float(tp['scale_angular']['yaw'])
+            self.joy_axes = (int(tp['axis_linear']['x']), int(tp['axis_angular']['yaw']),
+                             1.0 if yaw_scale >= 0 else -1.0)
         except (OSError, KeyError, TypeError, ValueError):
-            self.joy_buttons = (-1, -1)
+            self.joy_buttons, self.joy_axes = (-1, -1), (1, 0, 1.0)
         self.jpeg, self.jpeg_seq = None, 0
         self.jpeg_cond = threading.Condition()
         self.estop = False
@@ -706,12 +709,17 @@ class Dashboard(Node):
                 if 'disconnect' in line.lower() or 'failed to open' in line.lower():
                     break
         en, turbo = self.joy_buttons
+        lin, yaw, sign = self.joy_axes
         held = lambda b: bool(live and 0 <= b < len(joy[1]) and joy[1][b])
         return {'connected': live, 'name': name if live else None,
                 'enable_held': held(en), 'turbo_held': held(turbo),
                 'axes': [r(a, 2) for a in joy[0]] if live else [],
                 'buttons': list(joy[1]) if live else [],
-                'enable_button': en, 'turbo_button': turbo}
+                'enable_button': en, 'turbo_button': turbo,
+                # stick input as the robot reads it: +1 = full forward / full left turn
+                'drive': r(joy[0][lin], 2) if live and lin < len(joy[0]) else 0.0,
+                'turn': r(sign * joy[0][yaw], 2) if live and yaw < len(joy[0]) else 0.0,
+                'drive_axis': lin, 'turn_axis': yaw}
 
     def on_battery(self, m):
         with self.lock:

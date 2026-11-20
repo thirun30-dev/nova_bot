@@ -38,7 +38,7 @@ install(
 )
 
 install(
-  PROGRAMS scripts/nova_dashboard.py scripts/nova_tasks.py
+  PROGRAMS scripts/nova_dashboard.py scripts/nova_tasks.py scripts/joy_guard.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

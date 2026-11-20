@@ -49,6 +49,11 @@ export type RobotState = {
     buttons: number[];
     enable_button: number;
     turbo_button: number;
+    /** stick input as the robot reads it: +1 = full forward / full left turn */
+    drive: number;
+    turn: number;
+    drive_axis: number;
+    turn_axis: number;
   };
   nav: Nav;
   nav2_ready: boolean;

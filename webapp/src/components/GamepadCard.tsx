@@ -21,8 +21,6 @@ export default function GamepadCard() {
       ? act("stack/stop", { service: "joystick" }, "Gamepad control off")
       : act("stack/start", { service: "joystick" }, "Gamepad control starting…");
 
-  const lx = pad?.axes[0] ?? 0;
-  const ly = pad?.axes[1] ?? 0;
   const driving = !!(pad?.enable_held || pad?.turbo_held);
 
   return (
@@ -45,13 +43,9 @@ export default function GamepadCard() {
       </div>
 
       {on && pad?.connected && (
-        <div className="mt-4 flex items-center gap-4">
-          <div className="relative size-20 shrink-0 rounded-full border border-ink-600 bg-ink-800" title="Left stick">
-            <div
-              className={cx("absolute size-5 -translate-x-1/2 -translate-y-1/2 rounded-full", driving ? "bg-accent" : "bg-slate-500")}
-              style={{ left: `${50 - lx * 40}%`, top: `${50 - ly * 40}%` }}
-            />
-          </div>
+        <div className="mt-4 space-y-3">
+          <Axis label="Forward / back" hint={`left stick, axis ${pad.drive_axis}`} value={pad.drive} active={driving} neg="back" pos="forward" />
+          <Axis label="Turn" hint={`right stick, axis ${pad.turn_axis}`} value={-pad.turn} active={driving} neg="left" pos="right" />
           <div className="flex flex-wrap gap-1.5">
             {pad.buttons.map((b, i) => (
               <span key={i}
@@ -66,10 +60,31 @@ export default function GamepadCard() {
       )}
 
       <ul className="mt-4 list-disc space-y-1 pl-5 text-xs text-slate-400">
-        <li>Hold <b className="text-slate-200">LB</b> and use the left stick (up/down drives, left/right turns). Hold <b className="text-slate-200">RB</b> instead for faster driving. Let go and the robot stops.</li>
+        <li>Hold <b className="text-slate-200">LB</b>, then push the <b className="text-slate-200">left stick</b> up/down to drive and the <b className="text-slate-200">right stick</b> left/right to turn. Hold <b className="text-slate-200">RB</b> instead for faster driving. Let go and the robot stops.</li>
         <li>The gamepad overrides the web pad and Nav2 goals while a button is held. E-STOP still blocks it.</li>
         {S && !robotUp && <li className="text-amber-300">The robot base isn&apos;t running. Start it in Robot Stack so the gamepad can move it.</li>}
       </ul>
     </Card>
+  );
+}
+
+/** -1..1 bar from the centre; `value` > 0 fills to the right. */
+function Axis({ label, hint, value, active, neg, pos }: {
+  label: string; hint: string; value: number; active: boolean; neg: string; pos: string;
+}) {
+  const v = Math.max(-1, Math.min(1, value));
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs text-slate-400">
+        <span>{label} <span className="text-slate-500">({hint})</span></span>
+        <span className="font-mono tabular text-slate-300">{v.toFixed(2)}</span>
+      </div>
+      <div className="relative h-2.5 rounded-full bg-ink-800">
+        <div className="absolute inset-y-0 left-1/2 w-px bg-ink-600" />
+        <div className={cx("absolute inset-y-0 rounded-full", active ? "bg-accent" : "bg-slate-500")}
+          style={v >= 0 ? { left: "50%", width: `${v * 50}%` } : { right: "50%", width: `${-v * 50}%` }} />
+      </div>
+      <div className="mt-0.5 flex justify-between text-[10px] text-slate-500"><span>{neg}</span><span>{pos}</span></div>
+    </div>
   );
 }
