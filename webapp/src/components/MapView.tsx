@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRobot } from "./RobotProvider";
+import { ROBOT } from "@/lib/robotModel";
 
 export type Tool = "nav" | "pose" | "pan";
 export type Layers = { scan: boolean; plan: boolean; stations: boolean; grid: boolean };
@@ -108,17 +109,7 @@ export default function MapView({ interactive = true, tool = "nav", layers = ALL
       ctx.fillStyle = C.scan;
       for (let i = 0; i < S.scan.length; i += 2) { const [sx, sy] = toScreen(S.scan[i], S.scan[i + 1]); ctx.fillRect(sx - 1.5, sy - 1.5, 3, 3); }
     }
-    if (S?.pose) {
-      const p = S.pose, [sx, sy] = toScreen(p.x, p.y), rad = Math.max(7, 0.2 * v.scale);
-      const col = S.estop ? C.estop : C.robot;
-      ctx.fillStyle = col + "33"; ctx.strokeStyle = col; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(sx, sy, rad, 0, 7); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = col; ctx.beginPath();
-      ctx.moveTo(sx + Math.cos(p.yaw) * rad * 1.5, sy - Math.sin(p.yaw) * rad * 1.5);
-      ctx.lineTo(sx + Math.cos(p.yaw + 2.5) * rad * 0.7, sy - Math.sin(p.yaw + 2.5) * rad * 0.7);
-      ctx.lineTo(sx + Math.cos(p.yaw - 2.5) * rad * 0.7, sy - Math.sin(p.yaw - 2.5) * rad * 0.7);
-      ctx.closePath(); ctx.fill();
-    }
+    if (S?.pose) drawRobot(ctx, ...toScreen(S.pose.x, S.pose.y), S.pose.yaw, v.scale, S.estop ? C.estop : C.robot);
     const g = drag.current;
     if (g && g.kind !== "pan") {
       const [sx, sy] = toScreen(...g.world);
@@ -267,4 +258,39 @@ function arrow(ctx: CanvasRenderingContext2D, sx: number, sy: number, yaw: numbe
   ctx.lineTo(ex - 9 * Math.cos(a - 0.45), ey - 9 * Math.sin(a - 0.45));
   ctx.lineTo(ex - 9 * Math.cos(a + 0.45), ey - 9 * Math.sin(a + 0.45));
   ctx.closePath(); ctx.fill();
+}
+
+/** Nova seen from above, to scale (enlarged when zoomed far out so it stays visible). */
+function drawRobot(ctx: CanvasRenderingContext2D, sx: number, sy: number, yaw: number, scale: number, col: string) {
+  const { chassis: ch, wheel: wh, caster, lidar } = ROBOT;
+  const len = ch.x1 - ch.x0;
+  const k = Math.max(scale, 30 / len); // px per metre; at least 30 px long
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(-yaw);   // screen y points down
+  ctx.scale(k, -k);   // from here on: metres, x forward, y left
+  ctx.lineJoin = "round";
+  // shadow + footprint glow
+  ctx.fillStyle = col + "26";
+  ctx.beginPath(); ctx.roundRect(ch.x0 - 0.04, -ch.halfW - 0.05, len + 0.08, 2 * ch.halfW + 0.1, 0.06); ctx.fill();
+  // wheels
+  ctx.fillStyle = "#0f172a"; ctx.strokeStyle = "#475569"; ctx.lineWidth = 1.2 / k;
+  for (const sgn of [1, -1]) {
+    ctx.beginPath(); ctx.roundRect(wh.x - wh.r, sgn * wh.y - wh.w / 2, 2 * wh.r, wh.w, 0.006); ctx.fill(); ctx.stroke();
+  }
+  // chassis with a lighter top edge for a bit of depth
+  const g = ctx.createLinearGradient(ch.x0, 0, ch.x1, 0);
+  g.addColorStop(0, "#1e293b"); g.addColorStop(1, "#334155");
+  ctx.fillStyle = g; ctx.strokeStyle = col; ctx.lineWidth = 2 / k;
+  ctx.beginPath(); ctx.roundRect(ch.x0, -ch.halfW, len, 2 * ch.halfW, 0.025); ctx.fill(); ctx.stroke();
+  // caster
+  ctx.fillStyle = "#64748b"; ctx.beginPath(); ctx.arc(caster.x, 0, 0.018, 0, 7); ctx.fill();
+  // lidar puck
+  ctx.fillStyle = "#0b1120"; ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 1.5 / k;
+  ctx.beginPath(); ctx.arc(lidar.x, 0, lidar.r, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#fb7185"; ctx.beginPath(); ctx.arc(lidar.x + lidar.r * 0.55, 0, 0.012, 0, 7); ctx.fill();
+  // heading chevron at the front
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.moveTo(ch.x1 - 0.015, 0); ctx.lineTo(ch.x1 - 0.07, 0.05); ctx.lineTo(ch.x1 - 0.07, -0.05); ctx.closePath(); ctx.fill();
+  ctx.restore();
 }
