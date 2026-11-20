@@ -68,7 +68,7 @@ def generate_launch_description():
 
     # RPLidar A1 / A2M8: 115200, A2M12: 256000, C1: 460800
     lidar = Node(
-        package='rplidar_ros', executable='rplidar_node', name='rplidar_node',
+        package='rplidar_ros', executable='rplidar_composition', name='rplidar_node',
         condition=IfCondition(arg('lidar')),
         parameters=[{
             'serial_port': arg('lidar_port'),
