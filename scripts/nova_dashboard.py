@@ -260,11 +260,18 @@ class Stack:
             if not NAME_OK.match(m) or m not in [x['name'] for x in self.maps()]:
                 raise ValueError(f'unknown map {m!r}: save one first' if m else 'choose a saved map')
             path = os.path.join(self.node.get_parameter('map_dir').value, m + '.yaml')
-            return (base + ['localization.launch.py', 'map:=' + path, 'use_sim_time:=' + sim],
-                    f'AMCL on {m}')
+            return (base + ['localization.launch.py', 'map:=' + path, 'use_sim_time:=' + sim]
+                    + self.nav2_params(), f'AMCL on {m}')
         if name == 'navigation':
-            return base + ['navigation.launch.py', 'use_sim_time:=' + sim], 'Nav2'
+            return base + ['navigation.launch.py', 'use_sim_time:=' + sim] + self.nav2_params(), 'Nav2'
         raise ValueError(f'unknown service {name!r}')
+
+    def nav2_params(self):
+        """Real hardware uses config/nav2_params_robot.yaml (RPP, footprint, A1M8 limits);
+        simulation keeps the launch files' default config/nav2_params.yaml."""
+        if self.kind != 'real':
+            return []
+        return ['params_file:=' + os.path.join(self.node.share, 'config', 'nav2_params_robot.yaml')]
 
     def robot_args(self):
         """robot_args parameter ('serial_port:=/dev/ttyUSB0 lidar:=true ...'), limited to
