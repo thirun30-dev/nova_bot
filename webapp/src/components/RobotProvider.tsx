@@ -4,10 +4,13 @@
 // It lives in the root layout, so it survives client-side navigation between sections.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { apiUrl, getJson, initToken, postJson } from "@/lib/api";
+import { apiUrl, connectTo, disconnectApi, getJson, postJson, selectSameOrigin, servedByRobot, type ConnectResult } from "@/lib/api";
 import type { EventItem, MapData, RobotState, StackOptions, Station } from "@/lib/types";
 
-type Conn = "connecting" | "connected" | "stale" | "offline";
+type Conn = "connecting" | "connected" | "stale" | "offline" | "disconnected";
+/** "detect": checking where the page came from; "robot": served by the robot (auto-connect);
+ *  "manual": hosted elsewhere (Vercel), the user connects with the Connect form. */
+type Access = "detect" | "robot" | "manual";
 type Toast = { id: number; text: string; error: boolean };
 
 type Ctx = {
@@ -27,6 +30,11 @@ type Ctx = {
   act: (path: string, body?: unknown, okText?: string) => Promise<boolean>;
   reloadOptions: () => void;
   toggleEstop: () => Promise<void>;
+  access: Access;
+  /** robot origin the page is connected to in manual mode (null = not connected) */
+  session: string | null;
+  connect: (address: string, token: string) => Promise<ConnectResult>;
+  disconnect: () => void;
 };
 
 const RobotContext = createContext<Ctx | null>(null);
@@ -48,6 +56,10 @@ export function RobotProvider({ children }: { children: React.ReactNode }) {
   const [odometer, setOdometer] = useState(0);
   const [speedHistory, setSpeedHistory] = useState<number[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [access, setAccess] = useState<Access>("detect");
+  const [session, setSession] = useState<string | null>(null);
+  // bumped on every (re)connect so the stream effect reopens against the new robot
+  const [generation, setGeneration] = useState(0);
 
   const seen = useRef({ map: -1, maps: -1, stations: -1 });
   const lastPose = useRef<{ x: number; y: number } | null>(null);
@@ -79,9 +91,62 @@ export function RobotProvider({ children }: { children: React.ReactNode }) {
     await act("estop", { on: !estopRef.current });
   }, [act]);
 
-  // live stream
   useEffect(() => {
-    initToken();
+    let alive = true;
+    servedByRobot().then((robot) => {
+      if (!alive) return;
+      if (robot) {
+        selectSameOrigin();
+        setAccess("robot");
+        setGeneration((g) => g + 1);
+      } else {
+        setAccess("manual");
+        setConn("disconnected");
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const resetData = useCallback(() => {
+    seen.current = { map: -1, maps: -1, stations: -1 };
+    lastPose.current = null;
+    lastMsg.current = 0;
+    setState(null);
+    setEvents([]);
+    setStations([]);
+    setOptions(null);
+    setMap(null);
+    setOdometer(0);
+    setSpeedHistory([]);
+  }, []);
+
+  const connect = useCallback(
+    async (address: string, tok: string) => {
+      const r = await connectTo(address, tok);
+      if (r.ok) {
+        resetData();
+        setSession(address);
+        setConn("connecting");
+        setGeneration((g) => g + 1);
+      }
+      return r;
+    },
+    [resetData],
+  );
+
+  const disconnect = useCallback(() => {
+    disconnectApi();
+    setSession(null);
+    resetData();
+    setGeneration(0);
+    setConn("disconnected");
+  }, [resetData]);
+
+  // live stream (only once connected: generation > 0)
+  useEffect(() => {
+    if (generation === 0) return;
     let es: EventSource | null = null;
     let retry: ReturnType<typeof setTimeout> | undefined;
     let probe: ReturnType<typeof setTimeout> | undefined;
@@ -170,7 +235,7 @@ export function RobotProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(probe);
       clearInterval(stale);
     };
-  }, []);
+  }, [generation]);
 
   // Space = E-STOP from anywhere (except while typing)
   useEffect(() => {
@@ -185,8 +250,8 @@ export function RobotProvider({ children }: { children: React.ReactNode }) {
   }, [toggleEstop]);
 
   const value = useMemo<Ctx>(
-    () => ({ state, conn, transport, events, stations, options, map, odometer, speedHistory, toasts, toast, act, reloadOptions, toggleEstop }),
-    [state, conn, transport, events, stations, options, map, odometer, speedHistory, toasts, toast, act, reloadOptions, toggleEstop],
+    () => ({ state, conn, transport, events, stations, options, map, odometer, speedHistory, toasts, toast, act, reloadOptions, toggleEstop, access, session, connect, disconnect }),
+    [state, conn, transport, events, stations, options, map, odometer, speedHistory, toasts, toast, act, reloadOptions, toggleEstop, access, session, connect, disconnect],
   );
 
   return <RobotContext.Provider value={value}>{children}</RobotContext.Provider>;

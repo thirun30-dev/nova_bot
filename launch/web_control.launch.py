@@ -29,7 +29,12 @@ def generate_launch_description():
                               description='Access token (required when host is not localhost)'),
         DeclareLaunchArgument('cors_origin', default_value=' ',
                               description="Browser origin(s) allowed to call the API, e.g. "
-                                          "'https://nova.vercel.app' (comma-separated)"),
+                                          "'https://nova.vercel.app' (comma-separated, * wildcards allowed)"),
+        DeclareLaunchArgument('https_port', default_value='0',
+                              description="Also serve on this port with TLS (for the website "
+                                          "hosted on Vercel, same Wi-Fi); 0 = off"),
+        DeclareLaunchArgument('tls_cert', default_value=' ', description='TLS certificate (PEM)'),
+        DeclareLaunchArgument('tls_key', default_value=' ', description='TLS private key (PEM)'),
         DeclareLaunchArgument('world', default_value='obstacles.world',
                               description='Default Gazebo world in nova_bot/worlds'),
         DeclareLaunchArgument('map_dir', default_value=os.path.expanduser('~/nova_ws/maps'),
@@ -53,6 +58,9 @@ def generate_launch_description():
                 'port': ParameterValue(arg('port'), value_type=int),
                 'token': ParameterValue(arg('token'), value_type=str),
                 'cors_origin': ParameterValue(arg('cors_origin'), value_type=str),
+                'https_port': ParameterValue(arg('https_port'), value_type=int),
+                'tls_cert': ParameterValue(arg('tls_cert'), value_type=str),
+                'tls_key': ParameterValue(arg('tls_key'), value_type=str),
                 'robot_launch': arg('robot'),
                 'default_world': arg('world'),
                 'map_dir': arg('map_dir'),

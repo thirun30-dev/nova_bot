@@ -128,6 +128,19 @@ and `headless:=true`) to start a preset as soon as the dashboard is up, as `nova
 something publishes `/battery_state`. `robot:=real` uses `launch_robot.launch.py` (see
 [Real robot](#real-robot)); `robot_args:='serial_port:=... lidar_port:=...'` passes its arguments.
 
+### Vercel website on the same Wi-Fi
+
+The Vercel page doesn't connect by itself: it shows a **Connect** form (robot IP + token). With
+`--lan` (on by default with `--real`), `nova_run` also serves the API over HTTPS on port 8443. It
+uses a self-signed certificate in `~/.config/nova/tls`, which is remade when the robot's IP changes.
+Browsers won't let an https page call plain http, which is why the HTTPS port is needed. Any
+`https://*.vercel.app` origin is allowed, and the token still guards everything.
+
+1. Put the device on the robot's Wi-Fi. The first time (and after an IP change), open
+   `https://<robot-ip>:8443` and accept the certificate warning.
+2. Open the Vercel page, enter `<robot-ip>` and the token (`~/.config/nova/token`), press **Connect**.
+   **Disconnect** is in the sidebar. `--https-port 0` turns HTTPS off.
+
 ### From anywhere: Vercel + Cloudflare tunnel
 
 The UI deployed on Vercel is only static files; the browser talks to the robot directly, so the

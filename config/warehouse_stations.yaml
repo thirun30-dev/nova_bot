@@ -1,28 +1,5 @@
-# Named warehouse stations for the web dashboard (map frame, metres / radians).
-# Positions match maps/my_map_v2 in obstacles.world; edit them for the real warehouse map.
-stations:
-  - id: dock
-    name: Charging Dock
-    x: 0.0
-    y: 0.0
-    yaw: 0.0
-  - id: receiving
-    name: Receiving Bay
-    x: 2.0
-    y: 1.5
-    yaw: 1.57
-  - id: shipping
-    name: Shipping Bay
-    x: 0.5
-    y: 2.0
-    yaw: 3.14
-  - id: rack_a
-    name: Storage Rack A
-    x: 1.8
-    y: -2.0
-    yaw: -1.57
-  - id: rack_b
-    name: Storage Rack B
-    x: 0.6
-    y: -3.0
-    yaw: 3.14
+# Named stations (waypoints) for the web dashboard (map frame, metres / radians).
+# Empty by default: mark them on the page (Missions → "Add station here"); they are saved to
+# ~/nova_ws/maps/stations.yaml. Entry format:
+#   - {id: rack_a, name: Storage Rack A, x: 1.8, y: -2.0, yaw: -1.57}
+stations: []

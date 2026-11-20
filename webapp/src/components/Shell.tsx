@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import ConnectPanel from "./ConnectPanel";
 import { Icon, type IconName } from "./icons";
 import { useRobot } from "./RobotProvider";
 import { cx, Dot } from "./ui";
@@ -27,14 +28,15 @@ function isActive(path: string, href: string) {
 }
 
 export default function Shell({ children }: { children: React.ReactNode }) {
-  const { state: S, conn, toasts, toggleEstop } = useRobot();
+  const { state: S, conn, toasts, toggleEstop, access, session, disconnect } = useRobot();
+  const needConnect = access === "manual" && !session;
   const path = usePathname();
   const [open, setOpen] = useState(false);
   const estop = !!S?.estop;
   const bt = S?.lifecycle.bt_navigator;
   const nav2Tone = !S ? "off" : S.nav2_ready && (!bt || bt === "active") ? "ok" : S.nav2_ready ? "warn" : "bad";
-  const connTone = conn === "connected" ? "ok" : conn === "stale" ? "warn" : conn === "connecting" ? "busy" : "bad";
-  const connText = { connected: "Connected", stale: "Stale", connecting: "Connecting…", offline: "Reconnecting…" }[conn];
+  const connTone = conn === "connected" ? "ok" : conn === "stale" ? "warn" : conn === "connecting" ? "busy" : conn === "disconnected" ? "off" : "bad";
+  const connText = { connected: "Connected", stale: "Stale", connecting: "Connecting…", offline: "Reconnecting…", disconnected: "Not connected" }[conn];
 
   return (
     <div className="flex min-h-dvh">
@@ -73,6 +75,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <div className="space-y-1.5 border-t border-ink-700 px-5 py-4 text-xs text-slate-400">
           <div className="flex items-center gap-2"><Dot tone={connTone} />{connText}</div>
           <div>ROS time <span className="font-mono tabular text-slate-300">{S ? S.ros_time.toFixed(1) + " s" : "–"}</span></div>
+          {access === "manual" && session && (
+            <div className="flex items-center gap-2 pt-1">
+              <span className="min-w-0 flex-1 truncate font-mono text-slate-300" title={session}>{session}</span>
+              <button onClick={disconnect} className="rounded-md border border-ink-600 px-2 py-0.5 text-slate-300 hover:border-red-500 hover:text-red-200">
+                Disconnect
+              </button>
+            </div>
+          )}
           <div className="text-slate-500">Space = E-STOP</div>
         </div>
       </aside>
@@ -113,7 +123,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <main className="min-w-0 flex-1 p-4 pb-24 lg:pb-6">{children}</main>
+        <main className="min-w-0 flex-1 p-4 pb-24 lg:pb-6">
+          {access === "detect" ? null : needConnect ? <ConnectPanel /> : children}
+        </main>
       </div>
 
       {/* bottom tabs on phones */}

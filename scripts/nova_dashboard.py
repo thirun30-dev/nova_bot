@@ -42,6 +42,7 @@ velocity source, Nav2 included. Dashboard teleop goes to its own mux input
 network is trusted, and set a token when exposing it.
 """
 import base64
+import fnmatch
 import collections
 import ctypes
 import json
@@ -50,6 +51,7 @@ import os
 import queue
 import re
 import signal
+import ssl
 import subprocess
 import threading
 import time
@@ -529,6 +531,12 @@ class Dashboard(Node):
         # Next.js dev server (http://localhost:3000) or the Vercel deployment reached through
         # a Cloudflare tunnel. Comma-separated; empty = same origin only.
         self.declare_parameter('cors_origin', '')
+        # Second listener with TLS, for pages served over https (Vercel) on the same Wi-Fi:
+        # a browser won't let an https page call http://<robot>. 0 = off. The certificate is
+        # self-signed (nova_run makes it); each device accepts it once.
+        self.declare_parameter('https_port', 0)
+        self.declare_parameter('tls_cert', '')
+        self.declare_parameter('tls_key', '')
 
         self.lock = threading.Lock()
         self.events = collections.deque(maxlen=200)
@@ -1021,8 +1029,12 @@ class Dashboard(Node):
 def make_handler(node):
     web_dir = node.get_parameter('web_dir').value
     token = node.get_parameter('token').value
-    cors = {o.strip().rstrip('/') for o in node.get_parameter('cors_origin').value.split(',')
-            if o.strip()}
+    # exact origins, or patterns like https://*.vercel.app
+    cors = [o.strip().rstrip('/') for o in node.get_parameter('cors_origin').value.split(',')
+            if o.strip()]
+
+    def cors_ok(origin):
+        return bool(origin) and any(fnmatch.fnmatchcase(origin, pat) for pat in cors)
     types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript',
              '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png',
              '.ico': 'image/x-icon', '.json': 'application/json', '.txt': 'text/plain',
@@ -1054,7 +1066,7 @@ def make_handler(node):
 
         def end_headers(self):
             origin = self.headers.get('Origin')
-            if origin in cors:
+            if cors_ok(origin):
                 self.send_header('Access-Control-Allow-Origin', origin)
                 self.send_header('Vary', 'Origin')
             super().end_headers()
@@ -1075,6 +1087,10 @@ def make_handler(node):
                 self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
                 self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Token')
                 self.send_header('Access-Control-Max-Age', '600')
+                # Chrome: a public site calling a LAN address must be allowed explicitly
+                if (self.headers.get('Access-Control-Request-Private-Network') == 'true'
+                        and cors_ok(self.headers.get('Origin'))):
+                    self.send_header('Access-Control-Allow-Private-Network', 'true')
             self.send_header('Content-Length', '0')
             self.end_headers()
 
@@ -1265,14 +1281,32 @@ def main():
     shown = 'localhost' if host in ('0.0.0.0', '127.0.0.1') else host
     node.get_logger().info(f'Nova dashboard on http://{shown}:{port}'
                            + ('  (token required)' if node.get_parameter('token').value else ''))
+    servers = [server]
+    https_port = node.get_parameter('https_port').value
+    if https_port:
+        cert, key = node.get_parameter('tls_cert').value.strip(), node.get_parameter('tls_key').value.strip()
+        try:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.load_cert_chain(cert, key)
+            tls = ThreadingHTTPServer((host, https_port), make_handler(node))
+            tls.daemon_threads = True
+            # handshake in the request thread, so a slow client cannot stall accept()
+            tls.socket = ctx.wrap_socket(tls.socket, server_side=True,
+                                         do_handshake_on_connect=False)
+            threading.Thread(target=tls.serve_forever, daemon=True).start()
+            servers.append(tls)
+            node.get_logger().info(f'HTTPS (for the hosted website) on port {https_port}')
+        except (OSError, ssl.SSLError) as e:
+            node.get_logger().error(f'HTTPS on port {https_port} not started: {e}')
     try:
         executor.spin()
     except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
         pass
     finally:
         node.stack.shutdown()       # stop every launch started from the page
-        server.shutdown()
-        server.server_close()
+        for srv in servers:
+            srv.shutdown()
+            srv.server_close()
         executor.shutdown()
         node.destroy_node()
         rclpy.try_shutdown()

@@ -29,6 +29,8 @@
 #                    (needs cloudflared); prints a link for the website hosted on Vercel
 #   --web-url URL    that website, e.g. https://nova.vercel.app (or NOVA_WEB_URL in robot.env)
 #   --port N         dashboard port (default 8080)
+#   --https-port N   with --lan: also serve https on N for the Vercel website on the same Wi-Fi
+#                    (default 8443, 0 = off; self-signed certificate in ~/.config/nova/tls)
 #   --no-browser     do not open the dashboard window
 set -u
 
@@ -38,7 +40,7 @@ MAP_DIR="$HOME/nova_ws/maps"
 CONF_DIR="$HOME/.config/nova"
 ROS_DISTRO_NAME="${ROS_DISTRO:-jazzy}"
 
-usage() { sed -n '2,33p' "$(readlink -f "${BASH_SOURCE[0]}")" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,34p' "$(readlink -f "${BASH_SOURCE[0]}")" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 # saved real-robot defaults (plain KEY=value lines)
 NOVA_WEB_URL="" NOVA_ARDUINO="" NOVA_LIDAR="" NOVA_LIDAR_BAUD=115200 NOVA_CPR=3436 NOVA_CAMERA=false
@@ -46,6 +48,7 @@ NOVA_WEB_URL="" NOVA_ARDUINO="" NOVA_LIDAR="" NOVA_LIDAR_BAUD=115200 NOVA_CPR=34
 [ -f "$CONF_DIR/robot.env" ] && . "$CONF_DIR/robot.env"
 
 mode=mapping map="" world="obstacles.world" headless=false lan="" port=8080 browser=true
+https_port=8443
 real=false arduino="$NOVA_ARDUINO" lidar_dev="$NOVA_LIDAR" lidar_baud="$NOVA_LIDAR_BAUD"
 cpr="$NOVA_CPR" lidar=true camera="$NOVA_CAMERA"
 enc_args=()
@@ -74,6 +77,7 @@ while [ $# -gt 0 ]; do                      # the mode word may come before or a
         --tunnel) tunnel=true; shift ;;
         --web-url) web_url="${2:?--web-url needs a URL}"; web_url="${web_url%/}"; shift 2 ;;
         --port) port="${2:?--port needs a number}"; shift 2 ;;
+        --https-port) https_port="${2:?--https-port needs a number}"; shift 2 ;;
         --no-browser) browser=false; shift ;;
         -h|--help) usage ;;
         -*) echo "nova_run: unknown option '$1'" >&2; usage 1 ;;
@@ -175,6 +179,32 @@ if $lan || $tunnel; then            # the tunnel makes it public: a token is a m
 fi
 url="http://localhost:$port/${token:+?token=$token}"
 
+# ---- https for the website hosted on Vercel (same Wi-Fi) ----
+# A self-signed certificate for this machine's current IPs; remade when the IP changes
+# (phone hotspots hand out new addresses), after which each device accepts it again.
+$lan || https_port=0
+ips="$(hostname -I 2>/dev/null)"
+tls_dir="$CONF_DIR/tls"
+if [ "$https_port" != 0 ]; then
+    san="DNS:localhost,DNS:$(hostname),DNS:$(hostname).local,IP:127.0.0.1"
+    for a in $ips; do [[ $a == *:* ]] || san="$san,IP:$a"; done
+    if [ ! -s "$tls_dir/cert.pem" ] || [ "$(cat "$tls_dir/san" 2>/dev/null)" != "$san" ]; then
+        mkdir -p "$tls_dir"
+        if (umask 077; openssl req -x509 -newkey rsa:2048 -nodes -days 825 -subj "/CN=$(hostname) Nova robot" \
+                -addext "subjectAltName=$san" -addext "extendedKeyUsage=serverAuth" \
+                -keyout "$tls_dir/key.pem" -out "$tls_dir/cert.pem" >/dev/null 2>&1); then
+            echo "$san" > "$tls_dir/san"
+        else
+            echo "nova_run: could not make a TLS certificate (openssl); https is off" >&2
+            https_port=0
+        fi
+    fi
+fi
+# The hosted website may call the API: its URL (--web-url) and any *.vercel.app deployment.
+# The token still guards everything.
+cors="$web_url"
+[ "$https_port" != 0 ] && cors="${cors:+$cors,}https://*.vercel.app"
+
 # ---- already running? just open it ----
 if curl -s -o /dev/null -m 1 "http://127.0.0.1:$port/"; then
     echo "Nova dashboard is already running on port $port${token:+: $url}"
@@ -209,6 +239,10 @@ echo "    Dashboard: $url"
 if $lan; then
     ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
     echo "    From other devices: http://${ip:-<robot-ip>}:$port/?token=$token"
+    if [ "$https_port" != 0 ]; then
+        echo "    Vercel website: press Connect, address ${ip:-<robot-ip>}, token $token"
+        echo "      (first time on a device: open https://${ip:-<robot-ip>}:$https_port and accept the certificate)"
+    fi
 fi
 $tunnel && echo "    Internet: starting Cloudflare tunnel..."
 echo "    Ctrl-C stops everything."
@@ -224,7 +258,8 @@ else
     args+=(robot:=sim use_sim_time:=true world:="$world" headless:="$headless")
 fi
 [ -n "$token" ] && args+=(token:="$token")
-[ -n "$web_url" ] && args+=(cors_origin:="$web_url")
+[ -n "$cors" ] && args+=(cors_origin:="$cors")
+[ "$https_port" != 0 ] && args+=(https_port:="$https_port" tls_cert:="$tls_dir/cert.pem" tls_key:="$tls_dir/key.pem")
 
 # ---- Cloudflare quick tunnel: a random https://*.trycloudflare.com URL, new on every run ----
 tunnel_pid=""
