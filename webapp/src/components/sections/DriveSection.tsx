@@ -4,6 +4,7 @@ import { useRobot } from "../RobotProvider";
 import { Card, fmt, Stat } from "../ui";
 import { Camera, DrivePad, SpeedSpark } from "../widgets";
 import MapView from "../MapView";
+import GamepadCard from "../GamepadCard";
 
 export default function DriveSection() {
   const { state: S } = useRobot();
@@ -19,6 +20,7 @@ export default function DriveSection() {
           )}
           <DrivePad large />
         </Card>
+        <GamepadCard />
         <Card title="Motion">
           <div className="grid grid-cols-3 gap-2">
             <Stat label="Speed" value={fmt(S?.velocity?.vx)} unit="m/s" />

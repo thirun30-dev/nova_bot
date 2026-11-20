@@ -74,7 +74,7 @@ from rclpy.node import Node
 from rclpy.qos import (DurabilityPolicy, QoSProfile, ReliabilityPolicy,
                        qos_profile_sensor_data)
 from rclpy.time import Time
-from sensor_msgs.msg import BatteryState, CompressedImage, LaserScan
+from sensor_msgs.msg import BatteryState, CompressedImage, Joy, LaserScan
 from std_msgs.msg import Bool
 from tf2_ros import Buffer, TransformListener
 
@@ -104,6 +104,7 @@ SERVICES = {
     'slam': ('Mapping (SLAM)', 'slam_toolbox'),
     'localization': ('Localization (AMCL)', 'amcl'),
     'navigation': ('Navigation (Nav2)', 'bt_navigator'),
+    'joystick': ('Gamepad', 'teleop_node'),    # joy_node + teleop_twist_joy (Drive page)
 }
 # Line a launch prints once it is fully up (more exact than the node merely existing).
 READY_LINE = {'robot': 'Configured and activated diff_cont',
@@ -266,6 +267,8 @@ class Stack:
                     + self.nav2_params(), f'AMCL on {m}')
         if name == 'navigation':
             return base + ['navigation.launch.py', 'use_sim_time:=' + sim] + self.nav2_params(), 'Nav2'
+        if name == 'joystick':
+            return base + ['joystick.launch.py', 'use_sim_time:=' + sim], 'USB gamepad → /cmd_vel_joy'
         raise ValueError(f'unknown service {name!r}')
 
     def nav2_params(self):
@@ -405,7 +408,7 @@ class Stack:
         self.node.event('info', f'{label} stopped')
 
     def _stop_all(self, grace=15.0):
-        for name in ('navigation', 'slam', 'localization', 'robot'):
+        for name in ('joystick', 'navigation', 'slam', 'localization', 'robot'):
             self._stop(name, grace)
 
     def _wait_ready(self, name, timeout=120.0):
@@ -461,7 +464,7 @@ class Stack:
         """Dashboard exiting: stop everything it started (short grace: launch escalates on us)."""
         self.closed = True
         self.abort.set()
-        for name in ('navigation', 'slam', 'localization', 'robot'):
+        for name in ('joystick', 'navigation', 'slam', 'localization', 'robot'):
             p = self.procs.get(name)
             if p is not None and (p.alive or p._group_alive()):
                 p.stop(grace=10.0)
@@ -544,6 +547,14 @@ class Dashboard(Node):
         self.map_msg, self.map_version, self.map_blob = None, 0, None
         self.scan_pts, self.plan_pts, self.odom, self.amcl = [], [], None, None
         self.battery, self.cmd_out, self.cmd_out_t = None, (0.0, 0.0), 0.0
+        self.joy, self.joy_t = None, 0.0
+        # gamepad buttons from config/joystick.yaml, for the Drive page's status
+        try:
+            with open(os.path.join(share, 'config', 'joystick.yaml')) as f:
+                tp = yaml.safe_load(f)['teleop_node']['ros__parameters']
+            self.joy_buttons = (int(tp.get('enable_button', -1)), int(tp.get('enable_turbo_button', -1)))
+        except (OSError, KeyError, TypeError, ValueError):
+            self.joy_buttons = (-1, -1)
         self.jpeg, self.jpeg_seq = None, 0
         self.jpeg_cond = threading.Condition()
         self.estop = False
@@ -575,6 +586,7 @@ class Dashboard(Node):
         self.create_subscription(Path, '/plan', self.on_plan, 10)
         self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.on_amcl, latched)
         self.create_subscription(BatteryState, '/battery_state', self.on_battery, 10)
+        self.create_subscription(Joy, '/joy', self.on_joy, qos_profile_sensor_data)
         self.create_subscription(TwistStamped, '/diff_cont/cmd_vel', self.on_cmd_out, 10)
         self.create_subscription(CompressedImage, '/camera/image_raw/compressed',
                                  self.on_image, qos_profile_sensor_data)
@@ -673,6 +685,33 @@ class Dashboard(Node):
     def on_amcl(self, m):
         with self.lock:
             self.amcl = m
+
+    def on_joy(self, m):
+        with self.lock:
+            self.joy, self.joy_t = (list(m.axes), list(m.buttons)), time.monotonic()
+
+    def gamepad(self):
+        """Drive page status: is a gamepad sending data, which one, deadman/turbo held."""
+        with self.lock:
+            joy, age = self.joy, time.monotonic() - self.joy_t
+        live = joy is not None and age < 1.5    # joy_node repeats at 20 Hz while a pad is open
+        name = None
+        p = self.stack.procs.get('joystick')
+        if p is not None:
+            for line in reversed(p.log):
+                m = re.search(r'Opened joystick: (.+?)\.?\s+deadzone', line)
+                if m:
+                    name = m.group(1).strip()
+                    break
+                if 'disconnect' in line.lower() or 'failed to open' in line.lower():
+                    break
+        en, turbo = self.joy_buttons
+        held = lambda b: bool(live and 0 <= b < len(joy[1]) and joy[1][b])
+        return {'connected': live, 'name': name if live else None,
+                'enable_held': held(en), 'turbo_held': held(turbo),
+                'axes': [r(a, 2) for a in joy[0]] if live else [],
+                'buttons': list(joy[1]) if live else [],
+                'enable_button': en, 'turbo_button': turbo}
 
     def on_battery(self, m):
         with self.lock:
@@ -1023,6 +1062,7 @@ class Dashboard(Node):
                 'events': [e for e in self.events if e['seq'] > since_event],
             }
         state['stack'] = self.stack.status()
+        state['gamepad'] = self.gamepad()       # takes self.lock itself
         return state
 
 

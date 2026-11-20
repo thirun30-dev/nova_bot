@@ -15,7 +15,7 @@ export type Nav = {
   progress?: number;
 };
 
-export type ServiceName = "robot" | "slam" | "localization" | "navigation";
+export type ServiceName = "robot" | "slam" | "localization" | "navigation" | "joystick";
 export type ServiceState = "stopped" | "starting" | "running" | "stopping" | "failed" | "external";
 
 export type Service = {
@@ -39,6 +39,17 @@ export type RobotState = {
   command: { vx: number; wz: number };
   amcl: { std_xy: number; std_yaw_deg: number } | null;
   battery: { percent: number | null; voltage: number } | null;
+  /** USB gamepad on the robot (joy_node + teleop_twist_joy) */
+  gamepad?: {
+    connected: boolean;
+    name: string | null;
+    enable_held: boolean;
+    turbo_held: boolean;
+    axes: number[];
+    buttons: number[];
+    enable_button: number;
+    turbo_button: number;
+  };
   nav: Nav;
   nav2_ready: boolean;
   mission: { queue: string[]; loop: boolean; active: boolean };
